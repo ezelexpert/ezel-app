@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import React from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { getSession } from './lib/auth'
 import LoginPage from './pages/LoginPage'
 import AdminPage from './pages/AdminPage'
