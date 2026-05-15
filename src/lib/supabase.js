@@ -10,7 +10,7 @@ export async function getApartamente() {
   const { data, error } = await supabase
     .from('apartamente')
     .select('*')
-    .order('nr')
+    .order('id', { ascending: true })
   if (error) throw error
   return data
 }
