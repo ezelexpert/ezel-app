@@ -399,6 +399,8 @@ export default function AdminPage() {
             </table>
           </div>
         )}
+          {tab === 5 && <StatisticiPage />}
+      {tab === 6 && <MentenantaTab />}
       </div>
 
       {/* ── MODALS ── */}
