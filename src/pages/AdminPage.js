@@ -224,8 +224,8 @@ export default function AdminPage() {
               setEditData({ nr_apt: nr, zi, data_programata: data, cell })
               setModal('cell')
             }}
-            onAddMulti={() => { setEditData({ selApts: [], data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'generala' }); setModal('curMulti') }}
-            onAddUnic={() => { setEditData({ nr_apt: apts[0]?.nr, data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'generala' }); setModal('curUnic') }}
+            onAddMulti={() => { setEditData({ selApts: [], data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('curMulti') }}
+            onAddUnic={() => { setEditData({ nr_apt: apts[0]?.nr, data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('curUnic') }}
           />
         )}
 
@@ -243,14 +243,14 @@ export default function AdminPage() {
               </select>
               <button className="btn btn-p" onClick={() => { setEditData({ tip: 'simplu', status: 'liber', plata: 'OP' }); setModal('addApt') }}>+ Apt nou</button>
               <button className="btn btn-o" onClick={() => { setEditData({}); setModal('medit') }} disabled={selApts.size === 0}>✏️ Editează</button>
-              <button className="btn btn-g" onClick={() => { setEditData({ data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'generala' }); setModal('mcur') }} disabled={selApts.size === 0}>🧹 Curățenie</button>
+              <button className="btn btn-g" onClick={() => { setEditData({ data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('mcur') }} disabled={selApts.size === 0}>🧹 Curățenie</button>
             </div>
 
             {selApts.size > 0 && (
               <div className="mbar">
                 <span className="mcnt">{selApts.size} apartamente selectate</span>
                 <button className="btn btn-o" onClick={() => { setEditData({}); setModal('medit') }}>✏️ Editează</button>
-                <button className="btn btn-g" onClick={() => { setEditData({ data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'generala' }); setModal('mcur') }}>🧹 Curățenie</button>
+                <button className="btn btn-g" onClick={() => { setEditData({ data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('mcur') }}>🧹 Curățenie</button>
                 <button className="btn" onClick={clearSel}>✕</button>
               </div>
             )}
@@ -506,9 +506,9 @@ export default function AdminPage() {
           </div>
           <div className="fg"><label className="fl">Tip</label>
             <select className="fi" value={editData.tip_curatenie||'generala'} onChange={e => setEditData({...editData, tip_curatenie: e.target.value})}>
-              <option value="generala">Generală — la plecarea clientului</option>
               <option value="intretinere">Întreținere — același client</option>
-              <option value="urgenta">Urgență</option>
+<option value="generala">Generală — la plecarea clientului</option>
+<option value="urgenta">Urgență</option>
             </select>
           </div>
           <div className="fg"><label className="fl">Data</label><input className="fi" type="date" value={editData.data_programata||''} onChange={e => setEditData({...editData, data_programata: e.target.value})} /></div>
@@ -542,7 +542,9 @@ export default function AdminPage() {
           </div>
           <div className="fg"><label className="fl">Tip</label>
             <select className="fi" value={editData.tip_curatenie||'generala'} onChange={e => setEditData({...editData, tip_curatenie: e.target.value})}>
-              <option value="generala">Generală</option><option value="intretinere">Întreținere</option><option value="urgenta">Urgență</option>
+              <option value="intretinere">Întreținere</option>
+<option value="generala">Generală</option>
+<option value="urgenta">Urgență</option>
             </select>
           </div>
           <div className="fg"><label className="fl">Data</label><input className="fi" type="date" value={editData.data_programata||''} onChange={e => setEditData({...editData, data_programata: e.target.value})} /></div>
