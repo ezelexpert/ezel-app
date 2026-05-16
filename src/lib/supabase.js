@@ -97,11 +97,9 @@ export async function programeazaCuratenieMultipla(nrList, data, tip, obs, apts)
     }
   })
 
-  // Insereaza toate dintr-o singura cerere
   const { error } = await supabase.from('curatenie').insert(rows)
   if (error) throw error
 
-  // Actualizeaza status curatenie in apartamente
   const { error: err2 } = await supabase
     .from('apartamente')
     .update({ curatenie_status: 'programata' })
@@ -132,9 +130,60 @@ export async function stergeCuratenie(id) {
   if (error) throw error
 }
 
+// ── Mentenanta ───────────────────────────────────────────────
+export async function getMentenanta() {
+  const { data, error } = await supabase
+    .from('mentenanta')
+    .select('*')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data
+}
+
+export async function adaugaMentenanta(obj, fotografie) {
+  let foto_url = ''
+
+  // Upload poza daca exista
+  if (fotografie) {
+    const ext = fotografie.name.split('.').pop()
+    const fileName = `apt${obj.nr_apt}_${Date.now()}.${ext}`
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('mentenanta-foto')
+      .upload(fileName, fotografie)
+    if (!uploadError) {
+      const { data: urlData } = supabase.storage
+        .from('mentenanta-foto')
+        .getPublicUrl(fileName)
+      foto_url = urlData.publicUrl
+    }
+  }
+
+  const { error } = await supabase.from('mentenanta').insert({
+    nr_apt: obj.nr_apt,
+    firma: obj.firma || '',
+    descriere: obj.descriere,
+    foto_url,
+    status: 'nou'
+  })
+  if (error) throw error
+  await addLog('curatenie', 'Mentenanta raportata', obj.nr_apt, obj.descriere)
+}
+
+export async function updateStatusMentenanta(id, status) {
+  const { error } = await supabase
+    .from('mentenanta')
+    .update({ status })
+    .eq('id', id)
+  if (error) throw error
+}
+
+export async function stergeMentenanta(id) {
+  const { error } = await supabase.from('mentenanta').delete().eq('id', id)
+  if (error) throw error
+}
+
 // ── Statistici ───────────────────────────────────────────────
 export async function getStatistici() {
-  // Toate curateniile finalizate
   const { data, error } = await supabase
     .from('curatenie')
     .select('*')
@@ -142,10 +191,7 @@ export async function getStatistici() {
     .order('data_programata', { ascending: false })
   if (error) throw error
 
-  // Grupeaza pe luna
-  const peLuna = {}
-  const peSaptamana = {}
-  const peZi = {}
+  const peLuna = {}, peSaptamana = {}, peZi = {}
 
   data.forEach(c => {
     if (!c.data_programata) return
@@ -154,15 +200,13 @@ export async function getStatistici() {
     const luna = d.getMonth()
     const zi = d.getDate()
 
-    // Cheia lunii: "2025-05"
     const keyLuna = `${an}-${String(luna + 1).padStart(2, '0')}`
     if (!peLuna[keyLuna]) peLuna[keyLuna] = { total: 0, curatenii: [] }
     peLuna[keyLuna].total++
     peLuna[keyLuna].curatenii.push(c)
 
-    // Cheia saptamanii: luni-duminica
     const startSapt = new Date(d)
-    const dayOfWeek = d.getDay() === 0 ? 6 : d.getDay() - 1 // luni=0
+    const dayOfWeek = d.getDay() === 0 ? 6 : d.getDay() - 1
     startSapt.setDate(d.getDate() - dayOfWeek)
     const endSapt = new Date(startSapt)
     endSapt.setDate(startSapt.getDate() + 6)
@@ -172,7 +216,6 @@ export async function getStatistici() {
     peSaptamana[keySapt].total++
     peSaptamana[keySapt].curatenii.push(c)
 
-    // Cheia zilei: "2025-05-14"
     const keyZi = `${an}-${String(luna+1).padStart(2,'0')}-${String(zi).padStart(2,'0')}`
     if (!peZi[keyZi]) peZi[keyZi] = { total: 0, curatenii: [] }
     peZi[keyZi].total++
