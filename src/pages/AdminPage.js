@@ -8,8 +8,9 @@ import {
 } from '../lib/supabase'
 import Calendar from '../components/Calendar'
 import Modal from '../components/Modal'
+import StatisticiPage from './StatisticiPage'
 
-const TABS = ['📅 Calendar', '🚪 Apartamente', '🏢 Firme', '📋 Istoric', '💰 Incasari']
+const TABS = ['📅 Calendar', '🚪 Apartamente', '🏢 Firme', '📋 Istoric', '💰 Incasari', '📊 Statistici']
 const TAB_KEYS = ['calendar', 'apartamente', 'firme', 'istoric', 'incasari']
 const LUNI = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie']
 const ST_MAP = { activ: ['bb','Ocupat'], elib: ['br2','Elib.'], special: ['bp2','Special'], liber: ['bg2','Liber'], maint: ['ba','Mentenanță'] }
@@ -397,6 +398,7 @@ export default function AdminPage() {
             </table>
           </div>
         )}
+          {tab === 5 && <StatisticiPage />}
       </div>
 
       {/* ── MODALS ── */}
