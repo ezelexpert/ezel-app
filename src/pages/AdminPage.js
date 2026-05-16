@@ -9,9 +9,9 @@ import {
 import Calendar from '../components/Calendar'
 import Modal from '../components/Modal'
 import StatisticiPage from './StatisticiPage'
+import MentenantaTab from './MentenantaTab'
 
-const TABS = ['📅 Calendar', '🚪 Apartamente', '🏢 Firme', '📋 Istoric', '💰 Incasari', '📊 Statistici']
-const TAB_KEYS = ['calendar', 'apartamente', 'firme', 'istoric', 'incasari']
+const TABS = ['📅 Calendar', '🚪 Apartamente', '🏢 Firme', '📋 Istoric', '💰 Incasari', '📊 Statistici', '🔧 Mentenanță']const TAB_KEYS = ['calendar', 'apartamente', 'firme', 'istoric', 'incasari']
 const LUNI = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie']
 const ST_MAP = { activ: ['bb','Ocupat'], elib: ['br2','Elib.'], special: ['bp2','Special'], liber: ['bg2','Liber'], maint: ['ba','Mentenanță'] }
 
@@ -399,6 +399,7 @@ export default function AdminPage() {
           </div>
         )}
           {tab === 5 && <StatisticiPage />}
+{tab === 6 && <MentenantaTab />}
       </div>
 
       {/* ── MODALS ── */}
