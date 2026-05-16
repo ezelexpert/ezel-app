@@ -61,7 +61,7 @@ export async function getCuratenieAzi() {
     .from('curatenie')
     .select('*')
     .eq('data_programata', todayStr)
-    .order('nr_apt', { ascending: true })
+    .order('id', { ascending: true })
   if (error) throw error
   return data
 }
