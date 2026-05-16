@@ -55,12 +55,15 @@ export default function CuratenIePage() {
       setToate(toateData
   .filter(c => c.status_curatenie !== 'finalizata')
   .sort((a, b) => {
-    // Sortare: mai intai dupa data (crescator), apoi dupa nr apt
-    const dataA = new Date(a.data_programata)
-    const dataB = new Date(b.data_programata)
-    if (dataA - dataB !== 0) return dataA - dataB
-    return parseInt(a.nr_apt) - parseInt(b.nr_apt)
-  })
+  const dataA = new Date(a.data_programata)
+  const dataB = new Date(b.data_programata)
+  if (dataA - dataB !== 0) return dataA - dataB
+  const tipOrd = { intretinere: 0, generala: 1, urgenta: 2 }
+  const tA = tipOrd[a.tip_curatenie] ?? 1
+  const tB = tipOrd[b.tip_curatenie] ?? 1
+  if (tA !== tB) return tA - tB
+  return parseInt(a.nr_apt) - parseInt(b.nr_apt)
+})
 )
       setFinalizate(toateData.filter(c => c.status_curatenie === 'finalizata'))
     } catch(e) { console.error(e) }
