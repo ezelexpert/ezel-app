@@ -48,8 +48,14 @@ export default function CuratenIePage() {
         getCuratenieAzi(),
         getCuratenie()
       ])
-      setAzi(aziData.filter(c => c.status_curatenie !== 'finalizata'))
-      setToate(toateData.filter(c => c.status_curatenie !== 'finalizata'))
+      setAzi(aziData
+  .filter(c => c.status_curatenie !== 'finalizata')
+  .sort((a, b) => parseInt(a.nr_apt) - parseInt(b.nr_apt))
+)
+      setToate(toateData
+  .filter(c => c.status_curatenie !== 'finalizata')
+  .sort((a, b) => parseInt(a.nr_apt) - parseInt(b.nr_apt))
+)
       setFinalizate(toateData.filter(c => c.status_curatenie === 'finalizata'))
     } catch(e) { console.error(e) }
     setLoading(false)
