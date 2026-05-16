@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { logout } from '../lib/auth'
-import { getCuratenie, getCuratenieAzi, marcheazaStatus } from '../lib/supabase'
+import { getCuratenie, getCuratenieAzi, marcheazaStatus, adaugaMentenanta } from '../lib/supabase'
 
 const CHECKLIST_SIMPLU = [
   'Lenjerie de pat schimbată',
@@ -38,6 +38,14 @@ export default function CuratenIePage() {
   const [finalizate, setFinalizate] = useState([])
   const [loading, setLoading] = useState(true)
   const [checks, setChecks] = useState({})
+  // Modal mentenanta
+  const [modalMent, setModalMent] = useState(null) // curatenie object
+  const [descriere, setDescriere] = useState('')
+  const [fotografie, setFotografie] = useState(null)
+  const [previzualizare, setPrevizualizare] = useState(null)
+  const [trimitere, setTriimitere] = useState(false)
+  const [trimis, setTrimis] = useState(false)
+  const fileRef = useRef()
 
   useEffect(() => { load() }, [])
 
@@ -48,23 +56,32 @@ export default function CuratenIePage() {
         getCuratenieAzi(),
         getCuratenie()
       ])
+
+      const sortTip = (a, b) => {
+        const tipOrd = { intretinere: 0, generala: 1, urgenta: 2 }
+        const tA = tipOrd[a.tip_curatenie] ?? 1
+        const tB = tipOrd[b.tip_curatenie] ?? 1
+        if (tA !== tB) return tA - tB
+        return parseInt(a.nr_apt) - parseInt(b.nr_apt)
+      }
+
       setAzi(aziData
-  .filter(c => c.status_curatenie !== 'finalizata')
-  .sort((a, b) => parseInt(a.nr_apt) - parseInt(b.nr_apt))
-)
+        .filter(c => c.status_curatenie !== 'finalizata')
+        .sort(sortTip)
+      )
       setToate(toateData
-  .filter(c => c.status_curatenie !== 'finalizata')
-  .sort((a, b) => {
-  const dataA = new Date(a.data_programata)
-  const dataB = new Date(b.data_programata)
-  if (dataA - dataB !== 0) return dataA - dataB
-  const tipOrd = { intretinere: 0, generala: 1, urgenta: 2 }
-  const tA = tipOrd[a.tip_curatenie] ?? 1
-  const tB = tipOrd[b.tip_curatenie] ?? 1
-  if (tA !== tB) return tA - tB
-  return parseInt(a.nr_apt) - parseInt(b.nr_apt)
-})
-)
+        .filter(c => c.status_curatenie !== 'finalizata')
+        .sort((a, b) => {
+          const dataA = new Date(a.data_programata)
+          const dataB = new Date(b.data_programata)
+          if (dataA - dataB !== 0) return dataA - dataB
+          const tipOrd = { intretinere: 0, generala: 1, urgenta: 2 }
+          const tA = tipOrd[a.tip_curatenie] ?? 1
+          const tB = tipOrd[b.tip_curatenie] ?? 1
+          if (tA !== tB) return tA - tB
+          return parseInt(a.nr_apt) - parseInt(b.nr_apt)
+        })
+      )
       setFinalizate(toateData.filter(c => c.status_curatenie === 'finalizata'))
     } catch(e) { console.error(e) }
     setLoading(false)
@@ -95,6 +112,41 @@ export default function CuratenIePage() {
       ...prev,
       [id]: { ...(prev[id]||{}), [idx]: !(prev[id]||{})[idx] }
     }))
+  }
+
+  // Mentenanta
+  function deschideModalMent(c) {
+    setModalMent(c)
+    setDescriere('')
+    setFotografie(null)
+    setPrevizualizare(null)
+    setTrimis(false)
+  }
+
+  function selecteazaFoto(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    setFotografie(file)
+    const reader = new FileReader()
+    reader.onload = (ev) => setPrevizualizare(ev.target.result)
+    reader.readAsDataURL(file)
+  }
+
+  async function trimiteMentenanta() {
+    if (!descriere.trim()) { alert('Descrie problema!'); return }
+    setTriimitere(true)
+    try {
+      await adaugaMentenanta({
+        nr_apt: modalMent.nr_apt,
+        firma: modalMent.firma || '',
+        descriere: descriere.trim()
+      }, fotografie)
+      setTrimis(true)
+    } catch(e) {
+      alert('Eroare la trimitere. Încearcă din nou.')
+      console.error(e)
+    }
+    setTriimitere(false)
   }
 
   function renderCard(c) {
@@ -135,6 +187,7 @@ export default function CuratenIePage() {
           <div style={{ fontSize:12, color:'#888' }}>✅ Finalizată la: {c.data_finalizare || '—'}</div>
         )}
 
+        {/* Checklist — doar in progres */}
         {c.status_curatenie === 'in progres' && (
           <div style={{ background:'#f8f9fa', borderRadius:8, padding:'10px 12px', marginTop:10 }}>
             <div style={{ fontSize:11, color:'#888', marginBottom:4 }}>{done}/{checklist.length} puncte bifate</div>
@@ -151,16 +204,23 @@ export default function CuratenIePage() {
           </div>
         )}
 
+        {/* Butoane */}
         <div style={{ display:'flex', gap:8, marginTop:12, flexWrap:'wrap' }}>
           {c.status_curatenie === 'programata' && (
             <button style={{ flex:1, padding:'9px 16px', borderRadius:9, border:'1.5px solid #F0C040', background:'#FFF2CC', color:'#7B5E00', cursor:'pointer', fontSize:13, fontWeight:600 }}
               onClick={() => startCuratenie(c)}>▶ Începe</button>
           )}
           {c.status_curatenie === 'in progres' && (
-            <button style={{ flex:1, padding:'9px 16px', borderRadius:9, border:'none', background:allDone?'#375623':'#aaa', color:'#fff', cursor:allDone?'pointer':'not-allowed', fontSize:13, fontWeight:600 }}
-              disabled={!allDone} onClick={() => finalizaCuratenie(c)}>
-              ✅ Marchez finalizată{!allDone?` (${checklist.length-done} rămase)`:''}
-            </button>
+            <>
+              <button style={{ flex:1, padding:'9px 16px', borderRadius:9, border:'none', background:allDone?'#375623':'#aaa', color:'#fff', cursor:allDone?'pointer':'not-allowed', fontSize:13, fontWeight:600 }}
+                disabled={!allDone} onClick={() => finalizaCuratenie(c)}>
+                ✅ Marchez finalizată{!allDone?` (${checklist.length-done} rămase)`:''}
+              </button>
+              <button style={{ padding:'9px 14px', borderRadius:9, border:'1.5px solid #F5A0A0', background:'#FDECEA', color:'#c0392b', cursor:'pointer', fontSize:13, fontWeight:600 }}
+                onClick={() => deschideModalMent(c)}>
+                🔧 Mentenanță
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -206,6 +266,91 @@ export default function CuratenIePage() {
           lists[tab].map(renderCard)
         )}
       </div>
+
+      {/* MODAL MENTENANTA */}
+      {modalMent && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', zIndex:200, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}
+          onClick={e => e.target===e.currentTarget && setModalMent(null)}>
+          <div style={{ background:'#fff', borderRadius:16, padding:'20px', width:'100%', maxWidth:420, maxHeight:'90vh', overflowY:'auto' }}>
+
+            {trimis ? (
+              // Confirmare trimitere
+              <div style={{ textAlign:'center', padding:'20px 0' }}>
+                <div style={{ fontSize:52, marginBottom:12 }}>✅</div>
+                <div style={{ fontSize:16, fontWeight:700, color:'#375623', marginBottom:8 }}>Problemă raportată!</div>
+                <div style={{ fontSize:13, color:'#888', marginBottom:20 }}>
+                  Mentenanța pentru AP {modalMent.nr_apt} a fost trimisă managerului.
+                </div>
+                <button style={{ padding:'10px 24px', background:'#375623', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:600, cursor:'pointer' }}
+                  onClick={() => setModalMent(null)}>Închide</button>
+              </div>
+            ) : (
+              <>
+                {/* Header */}
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+                  <div>
+                    <div style={{ fontSize:15, fontWeight:700, color:'#c0392b' }}>🔧 Raportează mentenanță</div>
+                    <div style={{ fontSize:12, color:'#888', marginTop:2 }}>AP {modalMent.nr_apt} — {modalMent.firma||'—'}</div>
+                  </div>
+                  <button onClick={() => setModalMent(null)}
+                    style={{ width:30, height:30, borderRadius:'50%', border:'1px solid #eee', background:'#f5f5f5', cursor:'pointer', fontSize:16 }}>✕</button>
+                </div>
+
+                {/* Nr apartament (auto-completat, read only) */}
+                <div style={{ marginBottom:12 }}>
+                  <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block', fontWeight:600 }}>Apartament</label>
+                  <div style={{ padding:'8px 10px', background:'#f8f9fa', borderRadius:8, border:'1px solid #eee', fontSize:13, fontWeight:600, color:'#1F3864' }}>
+                    AP {modalMent.nr_apt} — {modalMent.firma||'—'}
+                  </div>
+                </div>
+
+                {/* Descriere */}
+                <div style={{ marginBottom:12 }}>
+                  <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block', fontWeight:600 }}>Descrie problema *</label>
+                  <textarea
+                    value={descriere}
+                    onChange={e => setDescriere(e.target.value)}
+                    placeholder="Ex: Bec ars în baie, robinet picură, pată pe saltea..."
+                    style={{ width:'100%', padding:'8px 10px', fontSize:13, border:'1.5px solid #ddd', borderRadius:8, outline:'none', minHeight:90, resize:'vertical', fontFamily:'inherit' }}
+                  />
+                </div>
+
+                {/* Fotografie */}
+                <div style={{ marginBottom:16 }}>
+                  <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block', fontWeight:600 }}>Fotografie (opțional)</label>
+                  <input ref={fileRef} type="file" accept="image/*" capture="environment"
+                    onChange={selecteazaFoto} style={{ display:'none' }} />
+
+                  {previzualizare ? (
+                    <div style={{ position:'relative' }}>
+                      <img src={previzualizare} alt="previzualizare" style={{ width:'100%', borderRadius:8, maxHeight:200, objectFit:'cover' }} />
+                      <button onClick={() => { setFotografie(null); setPrevizualizare(null); fileRef.current.value='' }}
+                        style={{ position:'absolute', top:6, right:6, width:28, height:28, borderRadius:'50%', background:'rgba(0,0,0,.6)', color:'#fff', border:'none', cursor:'pointer', fontSize:14 }}>✕</button>
+                    </div>
+                  ) : (
+                    <button onClick={() => fileRef.current.click()}
+                      style={{ width:'100%', padding:'12px', border:'1.5px dashed #ddd', borderRadius:8, background:'#fafafa', cursor:'pointer', fontSize:13, color:'#888', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                      📷 Adaugă fotografie
+                    </button>
+                  )}
+                </div>
+
+                {/* Butoane */}
+                <div style={{ display:'flex', gap:8 }}>
+                  <button onClick={trimiteMentenanta} disabled={trimitere||!descriere.trim()}
+                    style={{ flex:1, padding:'11px', background:descriere.trim()?'#c0392b':'#aaa', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:600, cursor:descriere.trim()?'pointer':'not-allowed' }}>
+                    {trimitere ? 'Se trimite...' : '🔧 Trimite raport'}
+                  </button>
+                  <button onClick={() => setModalMent(null)}
+                    style={{ padding:'11px 16px', border:'1px solid #ddd', background:'#fff', borderRadius:10, fontSize:14, cursor:'pointer' }}>
+                    Anulează
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
