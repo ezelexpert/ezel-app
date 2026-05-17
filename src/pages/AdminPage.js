@@ -402,6 +402,7 @@ export default function AdminPage() {
         )}
           {tab === 5 && <StatisticiPage />}
       {tab === 6 && <MentenantaTab />}
+{tab === 7 && <AmanariTab onRefreshCal={loadAll} />}
       </div>
 
       {/* ── MODALS ── */}
