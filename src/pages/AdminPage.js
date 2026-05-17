@@ -10,8 +10,9 @@ import Calendar from '../components/Calendar'
 import Modal from '../components/Modal'
 import StatisticiPage from './StatisticiPage'
 import MentenantaTab from './MentenantaTab'
+import AmanariTab from './AmanariTab'
 
-const TABS = ['📅 Calendar', '🚪 Apartamente', '🏢 Firme', '📋 Istoric', '💰 Incasari', '📊 Statistici', '🔧 Mentenanta']
+const TABS = [..., '🔧 Mentenanță', '📅 Amânări']
 const TAB_KEYS = ['calendar', 'apartamente', 'firme', 'istoric', 'incasari', 'statistici', 'mentenanta']
 const LUNI = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie']
 const ST_MAP = { activ: ['bb','Ocupat'], elib: ['br2','Elib.'], special: ['bp2','Special'], liber: ['bg2','Liber'], maint: ['ba','Mentenanta'] }
