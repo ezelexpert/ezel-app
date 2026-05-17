@@ -30,6 +30,47 @@ const CHECKLIST_DUBLU = [
   'Fotografie finală făcută',
 ]
 
+// Comprima imaginea inainte de upload
+async function comprimaImagine(file, maxWidth = 1200, calitate = 0.75) {
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        let w = img.width
+        let h = img.height
+
+        // Redimensioneaza daca e prea mare
+        if (w > maxWidth) {
+          h = Math.round((h * maxWidth) / w)
+          w = maxWidth
+        }
+
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(img, 0, 0, w, h)
+
+        canvas.toBlob(
+          (blob) => {
+            // Creeaza un nou File din blob comprimat
+            const comprimat = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+              type: 'image/jpeg',
+              lastModified: Date.now(),
+            })
+            resolve(comprimat)
+          },
+          'image/jpeg',
+          calitate
+        )
+      }
+      img.src = e.target.result
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
 export default function CuratenIePage() {
   const navigate = useNavigate()
   const [tab, setTab] = useState(0)
@@ -38,13 +79,13 @@ export default function CuratenIePage() {
   const [finalizate, setFinalizate] = useState([])
   const [loading, setLoading] = useState(true)
   const [checks, setChecks] = useState({})
-  // Modal mentenanta
-  const [modalMent, setModalMent] = useState(null) // curatenie object
+  const [modalMent, setModalMent] = useState(null)
   const [descriere, setDescriere] = useState('')
   const [fotografie, setFotografie] = useState(null)
   const [previzualizare, setPrevizualizare] = useState(null)
   const [trimitere, setTriimitere] = useState(false)
   const [trimis, setTrimis] = useState(false)
+  const [marimeFisier, setMarimeFisier] = useState(null)
   const fileRef = useRef()
 
   useEffect(() => { load() }, [])
@@ -65,23 +106,17 @@ export default function CuratenIePage() {
         return parseInt(a.nr_apt) - parseInt(b.nr_apt)
       }
 
-      setAzi(aziData
-        .filter(c => c.status_curatenie !== 'finalizata')
-        .sort(sortTip)
-      )
-      setToate(toateData
-        .filter(c => c.status_curatenie !== 'finalizata')
-        .sort((a, b) => {
-          const dataA = new Date(a.data_programata)
-          const dataB = new Date(b.data_programata)
-          if (dataA - dataB !== 0) return dataA - dataB
-          const tipOrd = { intretinere: 0, generala: 1, urgenta: 2 }
-          const tA = tipOrd[a.tip_curatenie] ?? 1
-          const tB = tipOrd[b.tip_curatenie] ?? 1
-          if (tA !== tB) return tA - tB
-          return parseInt(a.nr_apt) - parseInt(b.nr_apt)
-        })
-      )
+      setAzi(aziData.filter(c => c.status_curatenie !== 'finalizata').sort(sortTip))
+      setToate(toateData.filter(c => c.status_curatenie !== 'finalizata').sort((a, b) => {
+        const dataA = new Date(a.data_programata)
+        const dataB = new Date(b.data_programata)
+        if (dataA - dataB !== 0) return dataA - dataB
+        const tipOrd = { intretinere: 0, generala: 1, urgenta: 2 }
+        const tA = tipOrd[a.tip_curatenie] ?? 1
+        const tB = tipOrd[b.tip_curatenie] ?? 1
+        if (tA !== tB) return tA - tB
+        return parseInt(a.nr_apt) - parseInt(b.nr_apt)
+      }))
       setFinalizate(toateData.filter(c => c.status_curatenie === 'finalizata'))
     } catch(e) { console.error(e) }
     setLoading(false)
@@ -91,7 +126,7 @@ export default function CuratenIePage() {
 
   async function startCuratenie(c) {
     await marcheazaStatus(c.id, 'in progres', c.nr_apt)
-    const update = x => x.id===c.id ? {...x, status_curatenie:'in progres'} : x
+    const update = x => x.id === c.id ? {...x, status_curatenie: 'in progres'} : x
     setAzi(prev => prev.map(update))
     setToate(prev => prev.map(update))
     setChecks(prev => ({ ...prev, [c.id]: {} }))
@@ -101,7 +136,7 @@ export default function CuratenIePage() {
     if (!window.confirm(`Confirmi că ai finalizat curățenia la AP ${c.nr_apt}?`)) return
     const now = new Date().toLocaleString('ro-RO')
     await marcheazaStatus(c.id, 'finalizata', c.nr_apt)
-    const updated = {...c, status_curatenie:'finalizata', data_finalizare: now}
+    const updated = {...c, status_curatenie: 'finalizata', data_finalizare: now}
     setAzi(prev => prev.filter(x => x.id !== c.id))
     setToate(prev => prev.filter(x => x.id !== c.id))
     setFinalizate(prev => [updated, ...prev])
@@ -114,22 +149,32 @@ export default function CuratenIePage() {
     }))
   }
 
-  // Mentenanta
   function deschideModalMent(c) {
     setModalMent(c)
     setDescriere('')
     setFotografie(null)
     setPrevizualizare(null)
     setTrimis(false)
+    setMarimeFisier(null)
   }
 
-  function selecteazaFoto(e) {
+  async function selecteazaFoto(e) {
     const file = e.target.files[0]
     if (!file) return
-    setFotografie(file)
+
+    // Comprima imaginea
+    const comprimat = await comprimaImagine(file)
+    setFotografie(comprimat)
+
+    // Calculeaza marimea
+    const mb = (comprimat.size / 1024 / 1024).toFixed(2)
+    const mbOriginal = (file.size / 1024 / 1024).toFixed(2)
+    setMarimeFisier({ original: mbOriginal, comprimat: mb })
+
+    // Previzualizare
     const reader = new FileReader()
     reader.onload = (ev) => setPrevizualizare(ev.target.result)
-    reader.readAsDataURL(file)
+    reader.readAsDataURL(comprimat)
   }
 
   async function trimiteMentenanta() {
@@ -187,7 +232,6 @@ export default function CuratenIePage() {
           <div style={{ fontSize:12, color:'#888' }}>✅ Finalizată la: {c.data_finalizare || '—'}</div>
         )}
 
-        {/* Checklist — doar in progres */}
         {c.status_curatenie === 'in progres' && (
           <div style={{ background:'#f8f9fa', borderRadius:8, padding:'10px 12px', marginTop:10 }}>
             <div style={{ fontSize:11, color:'#888', marginBottom:4 }}>{done}/{checklist.length} puncte bifate</div>
@@ -204,7 +248,6 @@ export default function CuratenIePage() {
           </div>
         )}
 
-        {/* Butoane */}
         <div style={{ display:'flex', gap:8, marginTop:12, flexWrap:'wrap' }}>
           {c.status_curatenie === 'programata' && (
             <button style={{ flex:1, padding:'9px 16px', borderRadius:9, border:'1.5px solid #F0C040', background:'#FFF2CC', color:'#7B5E00', cursor:'pointer', fontSize:13, fontWeight:600 }}
@@ -274,7 +317,6 @@ export default function CuratenIePage() {
           <div style={{ background:'#fff', borderRadius:16, padding:'20px', width:'100%', maxWidth:420, maxHeight:'90vh', overflowY:'auto' }}>
 
             {trimis ? (
-              // Confirmare trimitere
               <div style={{ textAlign:'center', padding:'20px 0' }}>
                 <div style={{ fontSize:52, marginBottom:12 }}>✅</div>
                 <div style={{ fontSize:16, fontWeight:700, color:'#375623', marginBottom:8 }}>Problemă raportată!</div>
@@ -286,7 +328,6 @@ export default function CuratenIePage() {
               </div>
             ) : (
               <>
-                {/* Header */}
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
                   <div>
                     <div style={{ fontSize:15, fontWeight:700, color:'#c0392b' }}>🔧 Raportează mentenanță</div>
@@ -296,7 +337,6 @@ export default function CuratenIePage() {
                     style={{ width:30, height:30, borderRadius:'50%', border:'1px solid #eee', background:'#f5f5f5', cursor:'pointer', fontSize:16 }}>✕</button>
                 </div>
 
-                {/* Nr apartament (auto-completat, read only) */}
                 <div style={{ marginBottom:12 }}>
                   <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block', fontWeight:600 }}>Apartament</label>
                   <div style={{ padding:'8px 10px', background:'#f8f9fa', borderRadius:8, border:'1px solid #eee', fontSize:13, fontWeight:600, color:'#1F3864' }}>
@@ -304,28 +344,31 @@ export default function CuratenIePage() {
                   </div>
                 </div>
 
-                {/* Descriere */}
                 <div style={{ marginBottom:12 }}>
                   <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block', fontWeight:600 }}>Descrie problema *</label>
-                  <textarea
-                    value={descriere}
-                    onChange={e => setDescriere(e.target.value)}
+                  <textarea value={descriere} onChange={e => setDescriere(e.target.value)}
                     placeholder="Ex: Bec ars în baie, robinet picură, pată pe saltea..."
-                    style={{ width:'100%', padding:'8px 10px', fontSize:13, border:'1.5px solid #ddd', borderRadius:8, outline:'none', minHeight:90, resize:'vertical', fontFamily:'inherit' }}
-                  />
+                    style={{ width:'100%', padding:'8px 10px', fontSize:13, border:'1.5px solid #ddd', borderRadius:8, outline:'none', minHeight:90, resize:'vertical', fontFamily:'inherit' }} />
                 </div>
 
-                {/* Fotografie */}
                 <div style={{ marginBottom:16 }}>
-                  <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block', fontWeight:600 }}>Fotografie (opțional)</label>
+                  <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block', fontWeight:600 }}>
+                    Fotografie (opțional)
+                  </label>
                   <input ref={fileRef} type="file" accept="image/*" capture="environment"
                     onChange={selecteazaFoto} style={{ display:'none' }} />
 
                   {previzualizare ? (
                     <div style={{ position:'relative' }}>
-                      <img src={previzualizare} alt="previzualizare" style={{ width:'100%', borderRadius:8, maxHeight:200, objectFit:'cover' }} />
-                      <button onClick={() => { setFotografie(null); setPrevizualizare(null); fileRef.current.value='' }}
+                      <img src={previzualizare} alt="previzualizare"
+                        style={{ width:'100%', borderRadius:8, maxHeight:200, objectFit:'cover' }} />
+                      <button onClick={() => { setFotografie(null); setPrevizualizare(null); setMarimeFisier(null); fileRef.current.value='' }}
                         style={{ position:'absolute', top:6, right:6, width:28, height:28, borderRadius:'50%', background:'rgba(0,0,0,.6)', color:'#fff', border:'none', cursor:'pointer', fontSize:14 }}>✕</button>
+                      {marimeFisier && (
+                        <div style={{ marginTop:4, fontSize:10, color:'#888', textAlign:'center' }}>
+                          Original: {marimeFisier.original}MB → Comprimat: {marimeFisier.comprimat}MB
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <button onClick={() => fileRef.current.click()}
@@ -335,7 +378,6 @@ export default function CuratenIePage() {
                   )}
                 </div>
 
-                {/* Butoane */}
                 <div style={{ display:'flex', gap:8 }}>
                   <button onClick={trimiteMentenanta} disabled={trimitere||!descriere.trim()}
                     style={{ flex:1, padding:'11px', background:descriere.trim()?'#c0392b':'#aaa', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:600, cursor:descriere.trim()?'pointer':'not-allowed' }}>
