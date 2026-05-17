@@ -8,6 +8,10 @@ import {
 } from '../lib/supabase'
 import Calendar from '../components/Calendar'
 import Modal from '../components/Modal'
+import StatisticiPage from './StatisticiPage'
+import MentenantaTab from './MentenantaTab'
+import AmanariTab from './AmanariTab'
+import IncasariTab from './IncasariTab'
 
 const TABS = ['📅 Calendar', '🚪 Apartamente', '🏢 Firme', '📋 Istoric', '💰 Incasari', '📊 Statistici', '🔧 Mentenanta', '📅 Amanari']
 const TAB_KEYS = ['calendar', 'apartamente', 'firme', 'istoric', 'incasari', 'statistici', 'mentenanta', 'amanari']
