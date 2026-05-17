@@ -381,7 +381,7 @@ export default function AdminPage() {
         )}
 
         {/* ── INCASARI ── */}
-        {tab === 4 && <IncasariTab apts={APTS} />}}
+        {tab === 4 && <IncasariTab apts={apts} />}}
           {tab === 5 && <StatisticiPage />}
 {tab === 6 && <MentenantaTab />}
 {tab === 7 && <AmanariTab onRefreshCal={loadAll} />}
