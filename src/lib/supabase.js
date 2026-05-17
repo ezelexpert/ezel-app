@@ -33,19 +33,18 @@ export async function updateApartament(nr, fields) {
 // Programeaza automat curatenie generala la data eliberarii
 async function programeazaCuratenieAutoElib(nrApt, dataElib) {
   try {
-    // Converteste data din format dd.mm sau yyyy-mm-dd
+    // Converteste data din format dd.mm, dd.mm.yyyy sau yyyy-mm-dd
     let dataFormatata = dataElib
-    if (dataElib.includes('.')) {
+    if (typeof dataElib === 'string' && dataElib.includes('.')) {
       const parts = dataElib.split('.')
       if (parts.length === 2) {
-        // dd.mm -> yyyy-mm-dd (an curent)
         const an = new Date().getFullYear()
         dataFormatata = `${an}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`
       } else if (parts.length === 3) {
-        // dd.mm.yyyy
         dataFormatata = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`
       }
     }
+    // Daca e deja in format yyyy-mm-dd, ramane asa
 
     // Verifica daca data e valida
     const d = new Date(dataFormatata)
