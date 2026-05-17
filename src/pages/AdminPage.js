@@ -9,8 +9,8 @@ import {
 import Calendar from '../components/Calendar'
 import Modal from '../components/Modal'
 
-const TABS = ['📅 Calendar', '🚪 Apartamente', '🏢 Firme', '📋 Istoric', '💰 Incasari']
-const TAB_KEYS = ['calendar', 'apartamente', 'firme', 'istoric', 'incasari']
+const TABS = ['📅 Calendar', '🚪 Apartamente', '🏢 Firme', '📋 Istoric', '💰 Incasari', '📊 Statistici', '🔧 Mentenanta', '📅 Amanari']
+const TAB_KEYS = ['calendar', 'apartamente', 'firme', 'istoric', 'incasari', 'statistici', 'mentenanta', 'amanari']
 const LUNI = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie']
 const ST_MAP = { activ: ['bb','Ocupat'], elib: ['br2','Elib.'], special: ['bp2','Special'], liber: ['bg2','Liber'], maint: ['ba','Mentenanță'] }
 
@@ -423,6 +423,9 @@ export default function AdminPage() {
             </table>
           </div>
         )}
+          {tab === 5 && <StatisticiPage />}
+{tab === 6 && <MentenantaTab />}
+{tab === 7 && <AmanariTab onRefreshCal={loadAll} />}
       </div>
 
       {/* ── MODALS ── */}
