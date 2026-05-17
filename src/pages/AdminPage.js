@@ -8,14 +8,11 @@ import {
 } from '../lib/supabase'
 import Calendar from '../components/Calendar'
 import Modal from '../components/Modal'
-import StatisticiPage from './StatisticiPage'
-import MentenantaTab from './MentenantaTab'
-import AmanariTab from './AmanariTab'
 
-const TABS = ['📅 Calendar', '🚪 Apartamente', '🏢 Firme', '📋 Istoric', '💰 Incasari', '📊 Statistici', '🔧 Mentenanta', '📅 Amanari']
-const TAB_KEYS = ['calendar', 'apartamente', 'firme', 'istoric', 'incasari', 'statistici', 'mentenanta']
+const TABS = ['📅 Calendar', '🚪 Apartamente', '🏢 Firme', '📋 Istoric', '💰 Incasari']
+const TAB_KEYS = ['calendar', 'apartamente', 'firme', 'istoric', 'incasari']
 const LUNI = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie']
-const ST_MAP = { activ: ['bb','Ocupat'], elib: ['br2','Elib.'], special: ['bp2','Special'], liber: ['bg2','Liber'], maint: ['ba','Mentenanta'] }
+const ST_MAP = { activ: ['bb','Ocupat'], elib: ['br2','Elib.'], special: ['bp2','Special'], liber: ['bg2','Liber'], maint: ['ba','Mentenanță'] }
 
 export default function AdminPage() {
   const navigate = useNavigate()
@@ -78,6 +75,9 @@ export default function AdminPage() {
 
   async function saveEditApt() {
     const { nr, ...fields } = editData
+    // Include new fields
+    if (!fields.tip_serviciu) fields.tip_serviciu = 'cazare'
+    if (fields.tip_serviciu !== 'chirie') { fields.pret_utilitati = 0; fields.utilitati_tip = 'fix' }
     setApts(prev => prev.map(a => a.nr === nr ? { ...a, ...fields } : a))
     setModal(null)
     await updateApartament(nr, fields)
@@ -241,7 +241,7 @@ export default function AdminPage() {
                 <option value="activ">Ocupat</option>
                 <option value="liber">Liber</option>
                 <option value="elib">Eliberează</option>
-                <option value="maint">Mentenanta</option>
+                <option value="maint">Mentenanță</option>
               </select>
               <button className="btn btn-p" onClick={() => { setEditData({ tip: 'simplu', status: 'liber', plata: 'OP' }); setModal('addApt') }}>+ Apt nou</button>
               <button className="btn btn-o" onClick={() => { setEditData({}); setModal('medit') }} disabled={selApts.size === 0}>✏️ Editează</button>
@@ -376,33 +376,7 @@ export default function AdminPage() {
         )}
 
         {/* ── INCASARI ── */}
-        {tab === 4 && (
-          <div>
-            <div className="stats">
-              <div className="stat"><div className="stat-label">Total / lună</div><div className="stat-val">{incTotal.toLocaleString()} RON</div></div>
-              <div className="stat"><div className="stat-label">Firme active</div><div className="stat-val">{incRows.length}</div></div>
-              <div className="stat"><div className="stat-label">Apt facturabile</div><div className="stat-val">{incRows.reduce((s,[,v])=>s+v.apts.length,0)}</div></div>
-            </div>
-            <table className="tbl">
-              <thead><tr><th>Firmă</th><th>Apartamente</th><th>Nr</th><th>Preț/apt</th><th>Total est.</th><th>Plată</th></tr></thead>
-              <tbody>
-                {incRows.map(([name, v]) => (
-                  <tr key={name}>
-                    <td><strong>{name}</strong></td>
-                    <td style={{ fontSize: 11, color: '#888' }}>{v.apts.join(', ')}</td>
-                    <td>{v.apts.length}</td>
-                    <td>{v.p} RON</td>
-                    <td><strong>{(v.apts.length*v.p*30).toLocaleString()} RON</strong></td>
-                    <td><span className={`badge ${v.pl==='OP'?'bb':'bk'}`}>{v.pl}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-          {tab === 5 && <StatisticiPage />}
-      {tab === 6 && <MentenantaTab />}
-{tab === 7 && <AmanariTab onRefreshCal={loadAll} />}
+        {tab === 4 && <IncasariTab apts={APTS} />}}
       </div>
 
       {/* ── MODALS ── */}
@@ -416,19 +390,36 @@ export default function AdminPage() {
             <div className="fg"><label className="fl">Status</label>
               <select className="fi" value={editData.status||'activ'} onChange={e => setEditData({...editData, status: e.target.value})}>
                 <option value="activ">Ocupat</option><option value="liber">Liber</option>
-                <option value="elib">Eliberează</option><option value="maint">Mentenanta</option><option value="special">Special</option>
+                <option value="elib">Eliberează</option><option value="maint">Mentenanță</option><option value="special">Special</option>
               </select>
             </div>
             <div className="fg"><label className="fl">Data elib.</label><input className="fi" value={editData.data_elib||''} placeholder="ex: 20.05" onChange={e => setEditData({...editData, data_elib: e.target.value})} /></div>
           </div>
           <div className="r2">
-            <div className="fg"><label className="fl">Preț/noapte</label><input className="fi" type="number" value={editData.pret||''} onChange={e => setEditData({...editData, pret: e.target.value})} /></div>
+            <div className="fg"><label className="fl">Preț/noapte (cazare) sau /lună (chirie)</label><input className="fi" type="number" value={editData.pret||''} onChange={e => setEditData({...editData, pret: e.target.value})} /></div>
             <div className="fg"><label className="fl">Plată</label>
               <select className="fi" value={editData.plata||'OP'} onChange={e => setEditData({...editData, plata: e.target.value})}>
                 <option value="OP">OP</option><option value="Cash">Cash</option>
               </select>
             </div>
           </div>
+          <div className="fg"><label className="fl">Tip serviciu</label>
+            <select className="fi" value={editData.tip_serviciu||'cazare'} onChange={e => setEditData({...editData, tip_serviciu: e.target.value})}>
+              <option value="cazare">Cazare (preț/noapte)</option>
+              <option value="chirie">Chirie (preț/lună)</option>
+            </select>
+          </div>
+          {(editData.tip_serviciu === 'chirie') && (
+            <div className="r2">
+              <div className="fg"><label className="fl">Utilități (RON)</label><input className="fi" type="number" placeholder="0" value={editData.pret_utilitati||''} onChange={e => setEditData({...editData, pret_utilitati: e.target.value})} /></div>
+              <div className="fg"><label className="fl">Tip utilități</label>
+                <select className="fi" value={editData.utilitati_tip||'fix'} onChange={e => setEditData({...editData, utilitati_tip: e.target.value})}>
+                  <option value="fix">Fix (sumă fixă/lună)</option>
+                  <option value="variabil">Variabil (introduc lunar)</option>
+                </select>
+              </div>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <button className="btn btn-p" style={{ flex: 1 }} onClick={saveEditApt}>Salvează</button>
             <button className="btn" onClick={() => setModal(null)}>Anulează</button>
@@ -452,7 +443,7 @@ export default function AdminPage() {
           <div className="r2">
             <div className="fg"><label className="fl">Status</label>
               <select className="fi" value={editData.status||'liber'} onChange={e => setEditData({...editData, status: e.target.value})}>
-                <option value="activ">Ocupat</option><option value="liber">Liber</option><option value="maint">Mentenanta</option>
+                <option value="activ">Ocupat</option><option value="liber">Liber</option><option value="maint">Mentenanță</option>
               </select>
             </div>
             <div className="fg"><label className="fl">Preț/noapte</label><input className="fi" type="number" placeholder="85" value={editData.pret||''} onChange={e => setEditData({...editData, pret: e.target.value})} /></div>
@@ -480,7 +471,7 @@ export default function AdminPage() {
             <div className="fg"><label className="fl">Status</label>
               <select className="fi" value={editData.status||''} onChange={e => setEditData({...editData, status: e.target.value})}>
                 <option value="">— nu modifica —</option><option value="activ">Ocupat</option>
-                <option value="liber">Liber</option><option value="elib">Eliberează</option><option value="maint">Mentenanta</option>
+                <option value="liber">Liber</option><option value="elib">Eliberează</option><option value="maint">Mentenanță</option>
               </select>
             </div>
             <div className="fg"><label className="fl">Preț/noapte</label><input className="fi" type="number" placeholder="lasă gol" value={editData.pret||''} onChange={e => setEditData({...editData, pret: e.target.value})} /></div>
