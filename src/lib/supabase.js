@@ -56,7 +56,6 @@ export async function getCuratenieAzi() {
   const todayStr = today.getFullYear() + '-' +
     String(today.getMonth() + 1).padStart(2, '0') + '-' +
     String(today.getDate()).padStart(2, '0')
-
   const { data, error } = await supabase
     .from('curatenie')
     .select('*')
@@ -74,7 +73,8 @@ export async function programeazaCuratenie(obj) {
     firma: obj.firma || '',
     tip_curatenie: obj.tip_curatenie,
     status_curatenie: 'programata',
-    observatii: obj.observatii || ''
+    observatii: obj.observatii || '',
+    amanare_status: ''
   })
   if (error) throw error
   await supabase.from('apartamente').update({ curatenie_status: 'programata' }).eq('nr', obj.nr_apt)
@@ -83,7 +83,6 @@ export async function programeazaCuratenie(obj) {
 
 export async function programeazaCuratenieMultipla(nrList, data, tip, obs, apts) {
   if (!nrList || nrList.length === 0) return
-
   const rows = nrList.map(nr => {
     const apt = apts.find(a => a.nr === nr)
     return {
@@ -93,19 +92,13 @@ export async function programeazaCuratenieMultipla(nrList, data, tip, obs, apts)
       firma: apt?.firma || '',
       tip_curatenie: tip,
       status_curatenie: 'programata',
-      observatii: obs || ''
+      observatii: obs || '',
+      amanare_status: ''
     }
   })
-
   const { error } = await supabase.from('curatenie').insert(rows)
   if (error) throw error
-
-  const { error: err2 } = await supabase
-    .from('apartamente')
-    .update({ curatenie_status: 'programata' })
-    .in('nr', nrList)
-  if (err2) throw err2
-
+  await supabase.from('apartamente').update({ curatenie_status: 'programata' }).in('nr', nrList)
   await addLog('admin', `Curatenie multipla (${nrList.length})`, nrList.join(','), data)
 }
 
@@ -130,6 +123,63 @@ export async function stergeCuratenie(id) {
   if (error) throw error
 }
 
+// ── Amanare ──────────────────────────────────────────────────
+export async function propuneAmanare(id, dataNoua, motiv, dataOriginala) {
+  const { error } = await supabase.from('curatenie').update({
+    amanare_propusa: dataNoua,
+    amanare_motiv: motiv,
+    amanare_status: 'propusa',
+    data_originala: dataOriginala
+  }).eq('id', id)
+  if (error) throw error
+  await addLog('curatenie', 'Amanare propusa', '', `${dataOriginala} -> ${dataNoua}: ${motiv}`)
+}
+
+export async function aprobaAmanare(id) {
+  // Citeste datele curente
+  const { data: row, error: err } = await supabase
+    .from('curatenie').select('*').eq('id', id).single()
+  if (err) throw err
+
+  const { error } = await supabase.from('curatenie').update({
+    data_programata: row.amanare_propusa,
+    amanare_status: 'aprobata',
+    status_curatenie: 'programata'
+  }).eq('id', id)
+  if (error) throw error
+  await addLog('admin', 'Amanare aprobata', row.nr_apt, `-> ${row.amanare_propusa}`)
+}
+
+export async function respingeAmanare(id) {
+  const { data: row, error: err } = await supabase
+    .from('curatenie').select('*').eq('id', id).single()
+  if (err) throw err
+
+  const { error } = await supabase.from('curatenie').update({
+    amanare_status: 'respinsa',
+    amanare_propusa: null,
+    amanare_motiv: ''
+  }).eq('id', id)
+  if (error) throw error
+  await addLog('admin', 'Amanare respinsa', row.nr_apt, '')
+}
+
+export async function amanareDirecta(id, dataNoua, motiv) {
+  const { data: row, error: err } = await supabase
+    .from('curatenie').select('*').eq('id', id).single()
+  if (err) throw err
+
+  const { error } = await supabase.from('curatenie').update({
+    data_originala: row.data_originala || row.data_programata,
+    data_programata: dataNoua,
+    amanare_motiv: motiv,
+    amanare_status: 'aprobata',
+    status_curatenie: 'programata'
+  }).eq('id', id)
+  if (error) throw error
+  await addLog('admin', 'Amanare directa', row.nr_apt, `-> ${dataNoua}: ${motiv}`)
+}
+
 // ── Mentenanta ───────────────────────────────────────────────
 export async function getMentenanta() {
   const { data, error } = await supabase
@@ -142,12 +192,10 @@ export async function getMentenanta() {
 
 export async function adaugaMentenanta(obj, fotografie) {
   let foto_url = ''
-
-  // Upload poza daca exista
   if (fotografie) {
     const ext = fotografie.name.split('.').pop()
     const fileName = `apt${obj.nr_apt}_${Date.now()}.${ext}`
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('mentenanta-foto')
       .upload(fileName, fotografie)
     if (!uploadError) {
@@ -157,7 +205,6 @@ export async function adaugaMentenanta(obj, fotografie) {
       foto_url = urlData.publicUrl
     }
   }
-
   const { error } = await supabase.from('mentenanta').insert({
     nr_apt: obj.nr_apt,
     firma: obj.firma || '',
@@ -170,10 +217,7 @@ export async function adaugaMentenanta(obj, fotografie) {
 }
 
 export async function updateStatusMentenanta(id, status) {
-  const { error } = await supabase
-    .from('mentenanta')
-    .update({ status })
-    .eq('id', id)
+  const { error } = await supabase.from('mentenanta').update({ status }).eq('id', id)
   if (error) throw error
 }
 
@@ -192,26 +236,23 @@ export async function getStatistici() {
   if (error) throw error
 
   const peLuna = {}, peSaptamana = {}, peZi = {}
-
   data.forEach(c => {
     if (!c.data_programata) return
     const d = new Date(c.data_programata)
-    const an = d.getFullYear()
-    const luna = d.getMonth()
-    const zi = d.getDate()
+    const an = d.getFullYear(), luna = d.getMonth(), zi = d.getDate()
 
-    const keyLuna = `${an}-${String(luna + 1).padStart(2, '0')}`
+    const keyLuna = `${an}-${String(luna+1).padStart(2,'0')}`
     if (!peLuna[keyLuna]) peLuna[keyLuna] = { total: 0, curatenii: [] }
     peLuna[keyLuna].total++
     peLuna[keyLuna].curatenii.push(c)
 
     const startSapt = new Date(d)
-    const dayOfWeek = d.getDay() === 0 ? 6 : d.getDay() - 1
-    startSapt.setDate(d.getDate() - dayOfWeek)
+    const dow = d.getDay() === 0 ? 6 : d.getDay() - 1
+    startSapt.setDate(d.getDate() - dow)
     const endSapt = new Date(startSapt)
     endSapt.setDate(startSapt.getDate() + 6)
-    const fmtDate = (dt) => `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}`
-    const keySapt = `${fmtDate(startSapt)}-${fmtDate(endSapt)}.${endSapt.getFullYear()}`
+    const fmt = dt => `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}`
+    const keySapt = `${fmt(startSapt)}-${fmt(endSapt)}.${endSapt.getFullYear()}`
     if (!peSaptamana[keySapt]) peSaptamana[keySapt] = { total: 0, start: startSapt, curatenii: [] }
     peSaptamana[keySapt].total++
     peSaptamana[keySapt].curatenii.push(c)
@@ -256,5 +297,5 @@ export async function stergeIstoric(id) {
 export async function addLog(userTip, actiune, nrApt, detalii) {
   try {
     await supabase.from('log_actiuni').insert({ user_tip: userTip, actiune, nr_apt: nrApt, detalii })
-  } catch (e) {}
+  } catch(e) {}
 }
