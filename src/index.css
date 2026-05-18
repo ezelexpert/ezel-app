@@ -62,6 +62,7 @@ table.tbl th { text-align: left; padding: 7px 8px; color: #666; font-weight: 600
 table.tbl td { padding: 6px 8px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
 table.tbl tr:hover td { background: #f8f9ff; }
 table.tbl tr.sel td { background: #EBF1FB !important; }
+table.tbl tr { user-select: none; }
 
 /* Calendar */
 table.cal { border-collapse: collapse; font-size: 11px; min-width: 100%; }
