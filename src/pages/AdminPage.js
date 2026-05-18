@@ -97,6 +97,7 @@ export default function AdminPage() {
       return
     }
     if (!fields.pret || Number(fields.pret) <= 0) { alert('Pretul este obligatoriu!'); return }
+    if (fields.status === 'activ' && (!fields.firma || !fields.firma.trim())) { alert('Numele firmei este obligatoriu pentru un apartament ocupat!'); return }
     if (!fields.tip_serviciu) fields.tip_serviciu = 'cazare'
     if (fields.tip_serviciu !== 'chirie') { fields.pret_utilitati = 0; fields.utilitati_tip = 'fix' }
     // Firma completata = Ocupat automat
