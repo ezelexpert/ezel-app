@@ -226,7 +226,7 @@ export default function AdminPage() {
       <div style={{ display: 'flex', background: '#fff', borderBottom: '1.5px solid #e0e0e0', padding: '0 12px', overflowX: 'auto' }}>
         {TABS.map((t, i) => (
           <div key={i} onClick={() => setTab(i)}
-            style={{ padding: '10px 13px', fontSize: 13, cursor: 'pointer', color: tab === i ? '#1F3864' : '#888', borderBottom: `2.5px solid ${tab === i ? '#1F3864' : 'transparent'}`, whiteSpace: 'nowrap', fontWeight: 500 }}>
+            style={{ padding: '10px 13px', fontSize: 13, cursor: 'pointer', color: tab === i ? '#1F3864' : '#888', borderBottom: `2.5px solid ${tab === i ? '#1F3864' : 'transparent'}`, whiteSpace: 'nowrap', fontWeight: 500, userSelect: 'none' }}>
             {t}
           </div>
         ))}
@@ -282,7 +282,7 @@ export default function AdminPage() {
                   const [bc, bl] = ST_MAP[a.status] || ['bk','—']
                   const isDbl = a.tip === 'dublu' || String(a.nr).startsWith('D')
                   return (
-                    <tr key={a.nr} className={selApts.has(a.nr) ? 'sel' : ''}>
+                    <tr key={a.nr} className={selApts.has(a.nr) ? 'sel' : ''} style={{ userSelect: 'none' }}>
                       <td><input type="checkbox" checked={selApts.has(a.nr)} onChange={() => toggleSel(a.nr)} /></td>
                       <td><strong>{a.nr}</strong>{isDbl && <span className="tip-d">2x</span>}</td>
                       <td>{a.tip}</td>
