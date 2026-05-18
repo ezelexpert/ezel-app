@@ -13,6 +13,7 @@ import MentenantaTab from './MentenantaTab'
 import AmanariTab from './AmanariTab'
 import IncasariTab from './IncasariTab'
 import SpalatoriePage from './SpalatoriePage'
+import { checkSiRuleazaVineri, genereazaSaptamana } from '../lib/autoScheduler'
 
 const TABS = ['📅 Calendar', '🚪 Apartamente', '🏢 Firme', '📋 Istoric', '💰 Incasari', '📊 Statistici', '🔧 Mentenanta', '📅 Amanari', '🧺 Spalatorie']
 const TAB_KEYS = ['calendar', 'apartamente', 'firme', 'istoric', 'incasari', 'statistici', 'mentenanta', 'amanari', 'spalatorie']
@@ -36,6 +37,7 @@ export default function AdminPage() {
   const [calLuna, setCalLuna] = useState(now.getMonth())
   const [modal, setModal] = useState(null)
   const [editData, setEditData] = useState({})
+  const [schedulerMsg, setSchedulerMsg] = useState(null)
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -46,7 +48,17 @@ export default function AdminPage() {
     setLoading(false)
   }, [])
 
-  useEffect(() => { loadAll() }, [loadAll])
+  useEffect(() => {
+    loadAll()
+    // Ruleaza auto-scheduler vineri
+    checkSiRuleazaVineri().then(result => {
+      if (result && result.programate > 0) {
+        setSchedulerMsg(`✅ Auto-programat ${result.programate} curățenii pentru săptămâna viitoare!`)
+        setTimeout(() => setSchedulerMsg(null), 8000)
+        loadAll() // Reincarca datele
+      }
+    }).catch(e => console.error('Scheduler error:', e))
+  }, [loadAll])
 
   function handleLogout() { logout(); navigate('/', { replace: true }) }
 
@@ -252,6 +264,14 @@ export default function AdminPage() {
       <div style={{ padding: 12, maxWidth: 1200, margin: '0 auto' }}>
 
         {/* CALENDAR */}
+        {/* Scheduler notification */}
+        {schedulerMsg && (
+          <div style={{ background:'#E2EFDA', border:'1px solid #C0DD97', borderRadius:10, padding:'10px 14px', marginBottom:12, display:'flex', alignItems:'center', gap:10, fontSize:13, color:'#375623', fontWeight:500 }}>
+            <span style={{ flex:1 }}>{schedulerMsg}</span>
+            <button onClick={() => setSchedulerMsg(null)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:16, color:'#375623' }}>✕</button>
+          </div>
+        )}
+
         {tab === 0 && (
           <Calendar apts={apts} curatenii={curatenii} calAn={calAn} calLuna={calLuna}
             onChangeMonth={(d) => { let l = calLuna+d, a = calAn; if(l>11){l=0;a++}if(l<0){l=11;a--}; setCalLuna(l); setCalAn(a) }}
@@ -261,6 +281,13 @@ export default function AdminPage() {
               setModal('cell')
             }}
             onAddMulti={() => { setEditData({ selApts: [], data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('curMulti') }}
+            onAutoSchedule={async () => {
+              if (!window.confirm('Generezi automat curățeniile pentru săptămâna viitoare?')) return
+              const r = await genereazaSaptamana()
+              setSchedulerMsg(r.programate > 0 ? `✅ Programat ${r.programate} curățenii!` : '⚠️ Nimic de programat (toate sunt la zi)')
+              setTimeout(() => setSchedulerMsg(null), 6000)
+              loadAll()
+            }}
             onAddUnic={() => { setEditData({ nr_apt: apts[0]?.nr, data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('curUnic') }}
           />
         )}
