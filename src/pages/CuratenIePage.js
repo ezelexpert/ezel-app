@@ -38,6 +38,8 @@ const MOTIVE_AMANARE = [
   'Alt motiv',
 ]
 
+const NR_LENJERII = [1, 2, 3, 4, 5, 6]
+
 async function comprimaImagine(file, maxWidth = 1200, calitate = 0.75) {
   return new Promise((resolve) => {
     const reader = new FileReader()
@@ -67,6 +69,7 @@ export default function CuratenIePage() {
   const [finalizate, setFinalizate] = useState([])
   const [loading, setLoading] = useState(true)
   const [checks, setChecks] = useState({})
+  const [lenjerii, setLenjerii] = useState({}) // {curatenieId: numarSelectat}
 
   // Modal mentenanta
   const [modalMent, setModalMent] = useState(null)
@@ -135,6 +138,10 @@ export default function CuratenIePage() {
     setChecks(p => ({ ...p, [id]: { ...(p[id]||{}), [idx]: !(p[id]||{})[idx] } }))
   }
 
+  function selectLenjerii(id, n) {
+    setLenjerii(p => ({ ...p, [id]: p[id] === n ? null : n }))
+  }
+
   // Mentenanta
   function deschideModalMent(c) {
     setModalMent(c); setDescriere(''); setFotografie(null)
@@ -180,7 +187,6 @@ export default function CuratenIePage() {
     setAmanLoading(true)
     try {
       await propuneAmanare(modalAman.id, amanData, motivFinal, modalAman.data_programata)
-      // Update local
       const upd = x => x.id === modalAman.id ? {...x, amanare_status: 'propusa', amanare_propusa: amanData, amanare_motiv: motivFinal} : x
       setAzi(p => p.map(upd)); setToate(p => p.map(upd))
       setAmanTrimis(true)
@@ -200,6 +206,7 @@ export default function CuratenIePage() {
     const tipBg = c.tip_curatenie==='generala'?'#FDECEA':c.tip_curatenie==='intretinere'?'#EBF1FB':'#FFF2CC'
     const borderColor = c.tip_curatenie==='generala'?'#c0392b':c.tip_curatenie==='intretinere'?'#1F3864':'#F0C040'
     const areAmanare = c.amanare_status === 'propusa'
+    const nrLenjeriiSelectat = lenjerii[c.id]
 
     return (
       <div key={c.id} style={{ background:'#fff', borderRadius:12, border:`1px solid #e0e0e0`, borderLeft:`4px solid ${borderColor}`, padding:'14px 16px', marginBottom:10 }}>
@@ -223,7 +230,6 @@ export default function CuratenIePage() {
         <span style={{ display:'inline-block', fontSize:11, padding:'3px 10px', borderRadius:12, background:tipBg, color:tipColor, fontWeight:600, marginBottom:8 }}>{tipLabel}</span>
         <div style={{ fontSize:12, color:'#888', marginBottom:6 }}>📅 {c.data_programata}</div>
 
-        {/* Badge amanare propusa */}
         {areAmanare && (
           <div style={{ background:'#FFF2CC', border:'1px solid #F0C040', borderRadius:8, padding:'6px 10px', marginBottom:8, fontSize:12, color:'#7B5E00' }}>
             ⏳ <strong>Amânare propusă</strong> pentru {c.amanare_propusa} — aștepți aprobarea managerului
@@ -237,6 +243,31 @@ export default function CuratenIePage() {
 
         {c.status_curatenie === 'in progres' && (
           <div style={{ background:'#f8f9fa', borderRadius:8, padding:'10px 12px', marginTop:8 }}>
+
+            {/* CASUTE LENJERII */}
+            <div style={{ marginBottom:14, paddingBottom:12, borderBottom:'1px solid #eee' }}>
+              <div style={{ fontSize:11, fontWeight:600, color:'#555', marginBottom:8 }}>
+                🛏 Nr. lenjerii de pat schimbate:
+                {nrLenjeriiSelectat && <span style={{ marginLeft:8, background:'#375623', color:'#fff', padding:'1px 8px', borderRadius:10, fontSize:10 }}>{nrLenjeriiSelectat} selectat</span>}
+              </div>
+              <div style={{ display:'flex', gap:8 }}>
+                {NR_LENJERII.map(n => (
+                  <div key={n} onClick={() => selectLenjerii(c.id, n)}
+                    style={{
+                      width:42, height:42, borderRadius:9,
+                      border:`2px solid ${nrLenjeriiSelectat===n?'#375623':'#ddd'}`,
+                      background:nrLenjeriiSelectat===n?'#375623':'#fff',
+                      color:nrLenjeriiSelectat===n?'#fff':'#555',
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      cursor:'pointer', fontWeight:700, fontSize:16,
+                      transition:'all .15s', boxShadow:nrLenjeriiSelectat===n?'0 2px 8px rgba(55,86,35,.3)':'none'
+                    }}>
+                    {n}
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div style={{ fontSize:11, color:'#888', marginBottom:4 }}>{done}/{checklist.length} puncte bifate</div>
             <div style={{ height:6, background:'#e0e0e0', borderRadius:3, marginBottom:10, overflow:'hidden' }}>
               <div style={{ height:'100%', width:`${pct}%`, background:'#375623', borderRadius:3, transition:'width .3s' }}></div>
@@ -338,18 +369,15 @@ export default function CuratenIePage() {
                   <button onClick={() => setModalAman(null)}
                     style={{ width:30, height:30, borderRadius:'50%', border:'1px solid #eee', background:'#f5f5f5', cursor:'pointer', fontSize:16 }}>✕</button>
                 </div>
-
                 <div style={{ background:'#f8f9fa', borderRadius:8, padding:'8px 10px', marginBottom:14, fontSize:12, color:'#666' }}>
                   Data curentă: <strong>{modalAman.data_programata}</strong>
                 </div>
-
                 <div style={{ marginBottom:12 }}>
                   <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block', fontWeight:600 }}>Data nouă propusă *</label>
                   <input type="date" value={amanData} onChange={e => setAmanData(e.target.value)}
                     min={new Date().toISOString().split('T')[0]}
                     style={{ width:'100%', padding:'7px 9px', fontSize:13, border:'1.5px solid #ddd', borderRadius:8, outline:'none' }} />
                 </div>
-
                 <div style={{ marginBottom:12 }}>
                   <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block', fontWeight:600 }}>Motiv *</label>
                   {MOTIVE_AMANARE.map(m => (
@@ -367,10 +395,9 @@ export default function CuratenIePage() {
                       style={{ width:'100%', padding:'7px 9px', fontSize:13, border:'1.5px solid #ddd', borderRadius:8, outline:'none', marginTop:4 }} />
                   )}
                 </div>
-
                 <div style={{ display:'flex', gap:8, marginTop:8 }}>
                   <button onClick={trimitePropunereAmanare} disabled={amanLoading||!amanData}
-                    style={{ flex:1, padding:'11px', background:'#1F3864', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:600, cursor:'pointer', opacity:amanLoading||!amanData?.5:1 }}>
+                    style={{ flex:1, padding:'11px', background:'#1F3864', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:600, cursor:'pointer', opacity:amanLoading||!amanData?0.5:1 }}>
                     {amanLoading ? 'Se trimite...' : '📅 Trimite propunere'}
                   </button>
                   <button onClick={() => setModalAman(null)}
