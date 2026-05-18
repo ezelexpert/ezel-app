@@ -182,6 +182,26 @@ export async function genereazaSaptamana() {
     let programate = 0, skipped = 0
 
     // Separam ELM de restul
+    // Apartamente care elibereaza saptamana viitoare -> programeaza fix pe data elib, fara limita
+for (const apt of apts.filter(a => a.status === 'elib' && a.data_elib >= luniStr && a.data_elib <= vineriStr)) {
+  const areInSapt = (deja[apt.nr] || []).some(d => d >= luniStr && d <= vineriStr)
+  if (areInSapt) continue
+  deProgramat.push({
+    data_programata: apt.data_elib,
+    nr_apt: apt.nr,
+    tip_apt: apt.tip || 'simplu',
+    firma: apt.firma || '',
+    tip_curatenie: 'generala',
+    status_curatenie: 'programata',
+    observatii: 'Auto-generat la eliberare',
+    amanare_status: ''
+  })
+  slot[apt.data_elib] = (slot[apt.data_elib] || 0) + 1
+  programate++
+  // Marcheaza ca deja programat ca sa nu fie adaugat din nou mai jos
+  if (!deja[apt.nr]) deja[apt.nr] = []
+  deja[apt.nr].push(apt.data_elib)
+}
     const deSchedulatElm = deSchedulat.filter(x => x.isElm)
     const deSchedulatRest = deSchedulat.filter(x => !x.isElm)
 
