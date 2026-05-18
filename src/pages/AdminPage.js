@@ -119,7 +119,8 @@ export default function AdminPage() {
       status, pret: editData.pret||0, plata: editData.plata||'OP',
       tip_serviciu: editData.tip_serviciu||'cazare',
       pret_utilitati: editData.pret_utilitati||0,
-      utilitati_tip: editData.utilitati_tip||'fix'
+      utilitati_tip: editData.utilitati_tip||'fix',
+      nr_locuri: editData.nr_locuri||2
     }
     if (editData.nr_nopti && editData.data_checkin) {
       const checkin = new Date(editData.data_checkin)
@@ -291,7 +292,7 @@ export default function AdminPage() {
             <table className="tbl">
               <thead><tr>
                 <th><input type="checkbox" onChange={e => { if(e.target.checked) setSelApts(new Set(filteredApts.map(a=>a.nr))); else clearSel() }} /></th>
-                <th>Nr</th><th>Tip</th><th>Firmă</th><th>Notă</th><th>Status</th><th>Preț</th><th>Ultima cur.</th><th></th>
+                <th>Nr</th><th>Locuri</th><th>Firmă</th><th>Notă</th><th>Status</th><th>Preț</th><th>Ultima cur.</th><th></th>
               </tr></thead>
               <tbody>
                 {filteredApts.map(a => {
@@ -301,7 +302,11 @@ export default function AdminPage() {
                     <tr key={a.nr} className={selApts.has(a.nr) ? 'sel' : ''}>
                       <td><input type="checkbox" checked={selApts.has(a.nr)} onChange={() => toggleSel(a.nr)} /></td>
                       <td><strong>{a.nr}</strong>{isDbl && <span className="tip-d">2x</span>}</td>
-                      <td>{a.tip}</td>
+                      <td style={{ textAlign:'center' }}>
+                        <span style={{ display:'inline-flex', alignItems:'center', gap:3, fontSize:12, fontWeight:600, color:'#1F3864', background:'#EBF1FB', padding:'2px 8px', borderRadius:8 }}>
+                          🛏 {a.nr_locuri||2}
+                        </span>
+                      </td>
                       <td>{a.firma || '—'}</td>
                       <td style={{ color: '#888', fontSize: 11 }}>{a.nota || '—'}</td>
                       <td><span className={`badge ${bc}`}>{bl}</span></td>
@@ -424,6 +429,16 @@ export default function AdminPage() {
           <div className="fg"><label className="fl">Notă</label>
             <input className="fi" value={editData.nota||''} onChange={e => setEditData({...editData, nota: e.target.value})} />
           </div>
+          <div className="fg"><label className="fl">🛏 Nr. locuri (paturi)</label>
+            <div style={{ display:'flex', gap:6, marginTop:4 }}>
+              {[1,2,3,4,5,6].map(n => (
+                <div key={n} onClick={() => setEditData({...editData, nr_locuri: n})}
+                  style={{ width:42, height:42, borderRadius:9, border:`2px solid ${(editData.nr_locuri||2)===n?'#1F3864':'#ddd'}`, background:(editData.nr_locuri||2)===n?'#1F3864':'#fff', color:(editData.nr_locuri||2)===n?'#fff':'#555', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontWeight:700, fontSize:16 }}>
+                  {n}
+                </div>
+              ))}
+            </div>
+          </div>
           <div className="r2">
             <div className="fg"><label className="fl">Status</label>
               <select className="fi" value={editData.status||'activ'} onChange={e => setEditData({...editData, status: e.target.value})}>
@@ -504,6 +519,16 @@ export default function AdminPage() {
           </div>
           <div className="fg"><label className="fl">Firmă</label><input className="fi" value={editData.firma||''} onChange={e => setEditData({...editData, firma: e.target.value})} /></div>
           <div className="fg"><label className="fl">Notă</label><input className="fi" value={editData.nota||''} onChange={e => setEditData({...editData, nota: e.target.value})} /></div>
+          <div className="fg"><label className="fl">🛏 Nr. locuri (paturi)</label>
+            <div style={{ display:'flex', gap:6, marginTop:4 }}>
+              {[1,2,3,4,5,6].map(n => (
+                <div key={n} onClick={() => setEditData({...editData, nr_locuri: n})}
+                  style={{ width:42, height:42, borderRadius:9, border:`2px solid ${(editData.nr_locuri||2)===n?'#1F3864':'#ddd'}`, background:(editData.nr_locuri||2)===n?'#1F3864':'#fff', color:(editData.nr_locuri||2)===n?'#fff':'#555', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontWeight:700, fontSize:16 }}>
+                  {n}
+                </div>
+              ))}
+            </div>
+          </div>
           <div className="r2">
             <div className="fg"><label className="fl">Status</label>
               <select className="fi" value={editData.status||'liber'} onChange={e => setEditData({...editData, status: e.target.value})}>
