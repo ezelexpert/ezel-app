@@ -456,21 +456,7 @@ export default function AdminPage() {
               </select>
             </div>
           </div>
-          <div style={{ height: '0.5px', background: '#eee', margin: '10px 0' }}></div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 6 }}>PROGRAMARE AUTOMATĂ CURĂȚENIE (opțional)</div>
-          <div className="r2">
-            <div className="fg">
-              <label className="fl">Data check-in</label>
-              <input className="fi" type="date" value={editData.data_checkin||''} onChange={e => setEditData({...editData, data_checkin: e.target.value})} />
-            </div>
-            <div className="fg">
-              <label className="fl">Nr. nopți (1-7)</label>
-              <select className="fi" value={editData.nr_nopti||''} onChange={e => setEditData({...editData, nr_nopti: e.target.value})}>
-                <option value="">— nu seta —</option>
-                {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} {n===1?'noapte':'nopți'}</option>)}
-              </select>
-            </div>
-          </div>
+       
           {editData.nr_nopti && editData.data_checkin && (
             <div style={{ fontSize: 12, color: '#375623', background: '#E2EFDA', padding: '6px 10px', borderRadius: 7, marginTop: 4 }}>
               ✓ Curățenie generală programată automat pe {(() => { try { const d = new Date(editData.data_checkin); d.setDate(d.getDate() + parseInt(editData.nr_nopti)); return d.toLocaleDateString('ro-RO') } catch(e) { return '' } })()}
