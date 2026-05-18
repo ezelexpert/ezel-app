@@ -253,8 +253,8 @@ export default function AdminPage() {
               setEditData({ nr_apt: nr, zi, data_programata: data, cell })
               setModal('cell')
             }}
-            onAddMulti={() => { setEditData({ selApts: [], data_programata: new Date().toISOString().split('T')[0], intretinere }); setModal('curMulti') }}
-            onAddUnic={() => { setEditData({ nr_apt: apts[0]?.nr, data_programata: new Date().toISOString().split('T')[0], intretinere }); setModal('curUnic') }}
+            onAddMulti={() => { setEditData({ selApts: [], data_programata: new Date().toISOString().split('T')[0],tip_curatenie: 'intretinere' }); setModal('curMulti') }}
+            onAddUnic={() => { setEditData({ nr_apt: apts[0]?.nr, data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('curUnic') }}
           />
         )}
 
@@ -272,7 +272,7 @@ export default function AdminPage() {
               </select>
               <button className="btn btn-p" onClick={() => { setEditData({ tip: 'simplu', status: 'liber', plata: 'OP' }); setModal('addApt') }}>+ Apt nou</button>
               <button className="btn btn-o" onClick={() => { setEditData({}); setModal('medit') }} disabled={selApts.size === 0}>✏️ Editează</button>
-              <button className="btn btn-g" onClick={() => { setEditData({ data_programata: new Date().toISOString().split('T')[0], intretinere }); setModal('mcur') }} disabled={selApts.size === 0}>🧹 Curățenie</button>
+              <button className="btn btn-g" onClick={() => { setEditData({ data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('mcur') }} disabled={selApts.size === 0}>🧹 Curățenie</button>
             </div>
 
             {selApts.size > 0 && (
