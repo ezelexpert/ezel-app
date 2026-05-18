@@ -439,6 +439,16 @@ export default function AdminPage() {
         <Modal title={`Editează AP ${editData.nr}`} onClose={() => setModal(null)}>
           <div className="fg"><label className="fl">Firmă</label><input className="fi" value={editData.firma||''} onChange={e => setEditData({...editData, firma: e.target.value})} /></div>
           <div className="fg"><label className="fl">Notă</label><input className="fi" value={editData.nota||''} onChange={e => setEditData({...editData, nota: e.target.value})} /></div>
+        <div className="fg"><label className="fl">Nr. lenjerii schimbate (opțional)</label>
+  <div style={{ display:'flex', gap:6, marginTop:4 }}>
+    {[0,1,2,3,4,5,6].map(n => (
+      <div key={n} onClick={() => setEditData({...editData, nr_lenjerii: n})}
+        style={{ width:36, height:36, borderRadius:8, border:`1.5px solid ${editData.nr_lenjerii===n?'#1F3864':'#ddd'}`, background:editData.nr_lenjerii===n?'#1F3864':'#fff', color:editData.nr_lenjerii===n?'#fff':'#555', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontWeight:600, fontSize:13 }}>
+        {n===0?'—':n}
+      </div>
+    ))}
+  </div>
+</div>
           <div className="r2">
             <div className="fg"><label className="fl">Status</label>
               <select className="fi" value={editData.status||'activ'} onChange={e => setEditData({...editData, status: e.target.value})}>
