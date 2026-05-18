@@ -43,7 +43,24 @@ export default function AdminPage() {
     setLoading(true)
     try {
       const [a, c, i] = await Promise.all([getApartamente(), getCuratenie(), getIstoric()])
-      setApts(a); setCuratenii(c); setIstoric(i)
+      // Verifica apartamente cu data_elib depasita -> seteaza liber
+const azi = new Date().toISOString().split('T')[0]
+const deLiberat = a.filter(apt =>
+  apt.status === 'elib' && apt.data_elib && apt.data_elib < azi
+)
+if (deLiberat.length > 0) {
+  const resetFields = { status: 'liber', firma: '', nota: '', data_elib: '', pret: 0, pret_utilitati: 0, tip_serviciu: 'cazare', utilitati_tip: 'fix' }
+  for (const apt of deLiberat) {
+    await updateApartament(apt.nr, resetFields)
+  }
+  const aActualizat = a.map(apt =>
+    deLiberat.find(d => d.nr === apt.nr) ? { ...apt, ...resetFields } : apt
+  )
+  setApts(aActualizat)
+} else {
+  setApts(a)
+}
+setCuratenii(c); setIstoric(i)
     } catch(e) { console.error(e) }
     setLoading(false)
   }, [])
