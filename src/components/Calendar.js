@@ -3,7 +3,7 @@ import React, { useMemo } from 'react'
 const LUNI = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie']
 const ZS = ['Du','Lu','Ma','Mi','Jo','Vi','Sa']
 
-export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMonth, onCellClick, onAddMulti, onAddUnic }) {
+export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMonth, onCellClick, onAddMulti, onAddUnic, onAutoSchedule }) {
   const zile = new Date(calAn, calLuna + 1, 0).getDate()
   const today = new Date()
   const todayZi = today.getFullYear()===calAn && today.getMonth()===calLuna ? today.getDate() : -1
@@ -59,6 +59,7 @@ export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMont
         </div>
         <button className="btn btn-g" onClick={onAddMulti}>+ Curățenie multiplă</button>
         <button className="btn btn-p" onClick={onAddUnic}>+ Unic</button>
+        {onAutoSchedule && <button className="btn" style={{ background:'#E2EFDA', color:'#375623', border:'1px solid #C0DD97' }} onClick={onAutoSchedule}>🤖 Auto-planificare</button>}
       </div>
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
