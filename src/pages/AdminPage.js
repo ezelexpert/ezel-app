@@ -68,6 +68,22 @@ export default function AdminPage() {
 
   async function saveEditApt() {
     const { nr, ...fields } = editData
+    // Daca status = liber, reseteaza toate datele clientului
+    if (fields.status === 'liber') {
+      fields.firma = ''
+      fields.nota = ''
+      fields.data_elib = ''
+      fields.pret = 0
+      fields.pret_utilitati = 0
+      fields.tip_serviciu = 'cazare'
+      fields.utilitati_tip = 'fix'
+      fields.nr_nopti = null
+      fields.data_checkin = ''
+      setApts(prev => prev.map(a => a.nr === nr ? { ...a, ...fields } : a))
+      setModal(null)
+      await updateApartament(nr, fields)
+      return
+    }
     if (!fields.pret || Number(fields.pret) <= 0) { alert('Pretul este obligatoriu!'); return }
     if (!fields.tip_serviciu) fields.tip_serviciu = 'cazare'
     if (fields.tip_serviciu !== 'chirie') { fields.pret_utilitati = 0; fields.utilitati_tip = 'fix' }
@@ -226,7 +242,7 @@ export default function AdminPage() {
       <div style={{ display: 'flex', background: '#fff', borderBottom: '1.5px solid #e0e0e0', padding: '0 12px', overflowX: 'auto' }}>
         {TABS.map((t, i) => (
           <div key={i} onClick={() => setTab(i)}
-            style={{ padding: '10px 13px', fontSize: 13, cursor: 'pointer', color: tab === i ? '#1F3864' : '#888', borderBottom: `2.5px solid ${tab === i ? '#1F3864' : 'transparent'}`, whiteSpace: 'nowrap', fontWeight: 500, userSelect: 'none' }}>
+            style={{ padding: '10px 13px', fontSize: 13, cursor: 'pointer', color: tab === i ? '#1F3864' : '#888', borderBottom: `2.5px solid ${tab === i ? '#1F3864' : 'transparent'}`, whiteSpace: 'nowrap', fontWeight: 500 }}>
             {t}
           </div>
         ))}
@@ -282,7 +298,7 @@ export default function AdminPage() {
                   const [bc, bl] = ST_MAP[a.status] || ['bk','—']
                   const isDbl = a.tip === 'dublu' || String(a.nr).startsWith('D')
                   return (
-                    <tr key={a.nr} className={selApts.has(a.nr) ? 'sel' : ''} style={{ userSelect: 'none' }}>
+                    <tr key={a.nr} className={selApts.has(a.nr) ? 'sel' : ''}>
                       <td><input type="checkbox" checked={selApts.has(a.nr)} onChange={() => toggleSel(a.nr)} /></td>
                       <td><strong>{a.nr}</strong>{isDbl && <span className="tip-d">2x</span>}</td>
                       <td>{a.tip}</td>
