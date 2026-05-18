@@ -34,19 +34,14 @@ export default function AdminPage() {
   const now = new Date()
   const [calAn, setCalAn] = useState(now.getFullYear())
   const [calLuna, setCalLuna] = useState(now.getMonth())
-
-  // Modals
-  const [modal, setModal] = useState(null) // null | 'editApt' | 'addApt' | 'curUnic' | 'curMulti' | 'medit' | 'mcur' | 'addIst' | 'cell'
+  const [modal, setModal] = useState(null)
   const [editData, setEditData] = useState({})
 
-  // Load all data
   const loadAll = useCallback(async () => {
     setLoading(true)
     try {
       const [a, c, i] = await Promise.all([getApartamente(), getCuratenie(), getIstoric()])
-      setApts(a)
-      setCuratenii(c)
-      setIstoric(i)
+      setApts(a); setCuratenii(c); setIstoric(i)
     } catch(e) { console.error(e) }
     setLoading(false)
   }, [])
@@ -55,41 +50,41 @@ export default function AdminPage() {
 
   function handleLogout() { logout(); navigate('/', { replace: true }) }
 
-  // ── Stats ──────────────────────────────────────────────────
   const occ = apts.filter(a => a.status === 'activ' && a.firma).length
   const total = apts.filter(a => a.status !== 'maint').length
   const libre = apts.filter(a => a.status === 'liber').length
   const elib = apts.filter(a => a.status === 'elib').length
   const rev = apts.filter(a => a.status === 'activ' && a.pret > 0).reduce((s,a) => s + Number(a.pret) * 30, 0)
 
-  // ── Apartamente ────────────────────────────────────────────
   const filteredApts = apts.filter(a =>
     (!srchApt || (a.nr + (a.firma||'') + (a.nota||'')).toLowerCase().includes(srchApt.toLowerCase())) &&
     (!fltStatus || a.status === fltStatus)
   )
 
   function toggleSel(nr) {
-    setSelApts(prev => {
-      const s = new Set(prev)
-      s.has(nr) ? s.delete(nr) : s.add(nr)
-      return s
-    })
+    setSelApts(prev => { const s = new Set(prev); s.has(nr) ? s.delete(nr) : s.add(nr); return s })
   }
-
   function clearSel() { setSelApts(new Set()) }
 
   async function saveEditApt() {
     const { nr, ...fields } = editData
-    // Validare campuri obligatorii
     if (!fields.pret || Number(fields.pret) <= 0) { alert('Pretul este obligatoriu!'); return }
     if (!fields.tip_serviciu) fields.tip_serviciu = 'cazare'
-    if (fields.tip_serviciu !== 'chirie') { fields.pret_utilitati = 0 }
-    // Daca se seteaza nr_nopti si data_checkin, calculeaza data eliberarii si programeaza curatenie
+    if (fields.tip_serviciu !== 'chirie') { fields.pret_utilitati = 0; fields.utilitati_tip = 'fix' }
+    // Firma completata = Ocupat automat
+    if (fields.firma && fields.firma.trim() && (fields.status === 'liber' || !fields.status)) {
+      fields.status = 'activ'
+    }
+    // Data eliberare = status Elibereaza automat
+    if (fields.data_elib && fields.data_elib.trim()) {
+      fields.status = 'elib'
+    }
+    // Nr nopti + checkin = calculeaza data elib automata
     if (fields.nr_nopti && fields.data_checkin) {
       const checkin = new Date(fields.data_checkin)
       checkin.setDate(checkin.getDate() + parseInt(fields.nr_nopti))
-      const dataElib = checkin.getFullYear() + '-' + String(checkin.getMonth()+1).padStart(2,'0') + '-' + String(checkin.getDate()).padStart(2,'0')
-      fields.data_elib = dataElib
+      fields.data_elib = checkin.getFullYear() + '-' + String(checkin.getMonth()+1).padStart(2,'0') + '-' + String(checkin.getDate()).padStart(2,'0')
+      fields.status = 'elib'
     }
     setApts(prev => prev.map(a => a.nr === nr ? { ...a, ...fields } : a))
     setModal(null)
@@ -100,14 +95,16 @@ export default function AdminPage() {
     if (!editData.nr) { alert('Numarul apartamentului este obligatoriu!'); return }
     if (!editData.pret || Number(editData.pret) <= 0) { alert('Pretul este obligatoriu!'); return }
     if (!editData.tip_serviciu) editData.tip_serviciu = 'cazare'
+    let status = editData.status || 'liber'
+    if (editData.firma && editData.firma.trim() && status === 'liber') status = 'activ'
+    if (editData.data_elib && editData.data_elib.trim()) status = 'elib'
     const apt = {
       nr: editData.nr, tip: editData.tip||'simplu', firma: editData.firma||'', nota: editData.nota||'',
-      status: editData.status||'liber', pret: editData.pret||0, plata: editData.plata||'OP',
+      status, pret: editData.pret||0, plata: editData.plata||'OP',
       tip_serviciu: editData.tip_serviciu||'cazare',
       pret_utilitati: editData.pret_utilitati||0,
       utilitati_tip: editData.utilitati_tip||'fix'
     }
-    // Nr nopti -> data elib automata
     if (editData.nr_nopti && editData.data_checkin) {
       const checkin = new Date(editData.data_checkin)
       checkin.setDate(checkin.getDate() + parseInt(editData.nr_nopti))
@@ -121,9 +118,9 @@ export default function AdminPage() {
   async function saveMultiEdit() {
     const fields = {}
     if (editData.firma) fields.firma = editData.firma
-    if (editData.nota)  fields.nota  = editData.nota
+    if (editData.nota) fields.nota = editData.nota
     if (editData.status) fields.status = editData.status
-    if (editData.pret)  fields.pret  = editData.pret
+    if (editData.pret) fields.pret = editData.pret
     if (editData.plata) fields.plata = editData.plata
     if (editData.data_elib) fields.data_elib = editData.data_elib
     if (!Object.keys(fields).length) { alert('Completați cel puțin un câmp!'); return }
@@ -134,13 +131,11 @@ export default function AdminPage() {
     alert(`Actualizate: ${list.length} apartamente`)
   }
 
-  // ── Curățenie ──────────────────────────────────────────────
   async function saveCurUnic() {
     const apt = apts.find(a => a.nr === editData.nr_apt)
     await programeazaCuratenie({ ...editData, tip_apt: apt?.tip, firma: apt?.firma })
     setModal(null)
-    const c = await getCuratenie()
-    setCuratenii(c)
+    const c = await getCuratenie(); setCuratenii(c)
   }
 
   async function saveCurMulti() {
@@ -148,8 +143,7 @@ export default function AdminPage() {
     if (!list.length) { alert('Selectați cel puțin un apartament!'); return }
     await programeazaCuratenieMultipla(list, editData.data_programata, editData.tip_curatenie, editData.observatii, apts)
     setModal(null)
-    const c = await getCuratenie()
-    setCuratenii(c)
+    const c = await getCuratenie(); setCuratenii(c)
     alert(`${list.length} apartamente programate!`)
   }
 
@@ -157,8 +151,7 @@ export default function AdminPage() {
     const list = Array.from(selApts)
     await programeazaCuratenieMultipla(list, editData.data_programata, editData.tip_curatenie, editData.observatii||'', apts)
     setModal(null); clearSel()
-    const c = await getCuratenie()
-    setCuratenii(c)
+    const c = await getCuratenie(); setCuratenii(c)
     alert(`${list.length} programate!`)
   }
 
@@ -170,8 +163,7 @@ export default function AdminPage() {
       await programeazaDinCalendar(curatenie)
     }
     setModal(null)
-    const c = await getCuratenie()
-    setCuratenii(c)
+    const c = await getCuratenie(); setCuratenii(c)
   }
 
   async function programeazaDinCalendar(obj) {
@@ -179,7 +171,6 @@ export default function AdminPage() {
     await programeazaCuratenie({ data_programata: obj.data_programata, nr_apt: obj.nr_apt, tip_apt: apt?.tip, firma: apt?.firma, tip_curatenie: obj.tip_curatenie, observatii: '' })
   }
 
-  // ── Istoric ────────────────────────────────────────────────
   async function saveIst() {
     const s = editData.data_start, e = editData.data_end, p = Number(editData.pret_noapte)||0
     const z = s&&e ? Math.max(0, Math.round((new Date(e)-new Date(s))/86400000)) : 0
@@ -196,14 +187,12 @@ export default function AdminPage() {
     await stergeIstoric(id)
   }
 
-  // ── Render firme ───────────────────────────────────────────
   const byFirma = {}
   apts.filter(a => a.firma).forEach(a => {
     if (!byFirma[a.firma]) byFirma[a.firma] = { apts: [], pret: Number(a.pret)||0, plata: a.plata }
     byFirma[a.firma].apts.push(a)
   })
 
-  // ── Render incasari ─────────────────────────────────────────
   const byFirmaInc = {}
   apts.filter(a => a.firma && a.status === 'activ' && Number(a.pret) > 0).forEach(a => {
     if (!byFirmaInc[a.firma]) byFirmaInc[a.firma] = { apts: [], p: Number(a.pret), pl: a.plata }
@@ -217,7 +206,7 @@ export default function AdminPage() {
       <div style={{ fontSize: 48, fontWeight: 700, color: '#fff', marginBottom: 8 }}>EZEL</div>
       <div style={{ fontSize: 14, color: 'rgba(255,255,255,.6)', marginBottom: 24 }}>Se încarcă datele...</div>
       <div style={{ width: 200, height: 4, background: 'rgba(255,255,255,.2)', borderRadius: 2 }}>
-        <div style={{ height: '100%', width: '70%', background: '#fff', borderRadius: 2, animation: 'none' }}></div>
+        <div style={{ height: '100%', width: '70%', background: '#fff', borderRadius: 2 }}></div>
       </div>
     </div>
   )
@@ -245,7 +234,7 @@ export default function AdminPage() {
 
       <div style={{ padding: 12, maxWidth: 1200, margin: '0 auto' }}>
 
-        {/* ── CALENDAR ── */}
+        {/* CALENDAR */}
         {tab === 0 && (
           <Calendar apts={apts} curatenii={curatenii} calAn={calAn} calLuna={calLuna}
             onChangeMonth={(d) => { let l = calLuna+d, a = calAn; if(l>11){l=0;a++}if(l<0){l=11;a--}; setCalLuna(l); setCalAn(a) }}
@@ -254,12 +243,12 @@ export default function AdminPage() {
               setEditData({ nr_apt: nr, zi, data_programata: data, cell })
               setModal('cell')
             }}
-            onAddMulti={() => { setEditData({ selApts: [], data_programata: new Date().toISOString().split('T')[0],tip_curatenie: 'intretinere' }); setModal('curMulti') }}
+            onAddMulti={() => { setEditData({ selApts: [], data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('curMulti') }}
             onAddUnic={() => { setEditData({ nr_apt: apts[0]?.nr, data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('curUnic') }}
           />
         )}
 
-        {/* ── APARTAMENTE ── */}
+        {/* APARTAMENTE */}
         {tab === 1 && (
           <div>
             <div className="srch-row">
@@ -271,20 +260,18 @@ export default function AdminPage() {
                 <option value="elib">Eliberează</option>
                 <option value="maint">Mentenanță</option>
               </select>
-              <button className="btn btn-p" onClick={() => { setEditData({ tip: 'simplu', status: 'liber', plata: 'OP' }); setModal('addApt') }}>+ Apt nou</button>
+              <button className="btn btn-p" onClick={() => { setEditData({ tip: 'simplu', status: 'liber', plata: 'OP', tip_serviciu: 'cazare' }); setModal('addApt') }}>+ Apt nou</button>
               <button className="btn btn-o" onClick={() => { setEditData({}); setModal('medit') }} disabled={selApts.size === 0}>✏️ Editează</button>
               <button className="btn btn-g" onClick={() => { setEditData({ data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('mcur') }} disabled={selApts.size === 0}>🧹 Curățenie</button>
             </div>
-
             {selApts.size > 0 && (
               <div className="mbar">
                 <span className="mcnt">{selApts.size} apartamente selectate</span>
                 <button className="btn btn-o" onClick={() => { setEditData({}); setModal('medit') }}>✏️ Editează</button>
-                <button className="btn btn-g" onClick={() => { setEditData({ data_programata: new Date().toISOString().split('T')[0], intretinere }); setModal('mcur') }}>🧹 Curățenie</button>
+                <button className="btn btn-g" onClick={() => { setEditData({ data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('mcur') }}>🧹 Curățenie</button>
                 <button className="btn" onClick={clearSel}>✕</button>
               </div>
             )}
-
             <table className="tbl">
               <thead><tr>
                 <th><input type="checkbox" onChange={e => { if(e.target.checked) setSelApts(new Set(filteredApts.map(a=>a.nr))); else clearSel() }} /></th>
@@ -313,7 +300,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ── FIRME ── */}
+        {/* FIRME */}
         {tab === 2 && (
           <div>
             <div className="srch-row"><input placeholder="Caută firmă..." value={srchFirma} onChange={e => setSrchFirma(e.target.value)} /></div>
@@ -348,7 +335,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ── ISTORIC ── */}
+        {/* ISTORIC */}
         {tab === 3 && (
           <div>
             <div className="srch-row">
@@ -403,54 +390,24 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ── INCASARI ── */}
-        {tab === 4 && (
-          <div>
-            <div className="stats">
-              <div className="stat"><div className="stat-label">Total / lună</div><div className="stat-val">{incTotal.toLocaleString()} RON</div></div>
-              <div className="stat"><div className="stat-label">Firme active</div><div className="stat-val">{incRows.length}</div></div>
-              <div className="stat"><div className="stat-label">Apt facturabile</div><div className="stat-val">{incRows.reduce((s,[,v])=>s+v.apts.length,0)}</div></div>
-            </div>
-            <table className="tbl">
-              <thead><tr><th>Firmă</th><th>Apartamente</th><th>Nr</th><th>Preț/apt</th><th>Total est.</th><th>Plată</th></tr></thead>
-              <tbody>
-                {incRows.map(([name, v]) => (
-                  <tr key={name}>
-                    <td><strong>{name}</strong></td>
-                    <td style={{ fontSize: 11, color: '#888' }}>{v.apts.join(', ')}</td>
-                    <td>{v.apts.length}</td>
-                    <td>{v.p} RON</td>
-                    <td><strong>{(v.apts.length*v.p*30).toLocaleString()} RON</strong></td>
-                    <td><span className={`badge ${v.pl==='OP'?'bb':'bk'}`}>{v.pl}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-          {tab === 5 && <StatisticiPage />}
-{tab === 6 && <MentenantaTab />}
-{tab === 7 && <AmanariTab onRefreshCal={loadAll} />}
-  {tab === 8 && <SpalatoriePage />}
+        {/* INCASARI */}
+        {tab === 4 && <IncasariTab apts={apts} />}
+
+        {tab === 5 && <StatisticiPage />}
+        {tab === 6 && <MentenantaTab />}
+        {tab === 7 && <AmanariTab onRefreshCal={loadAll} />}
+        {tab === 8 && <SpalatoriePage />}
       </div>
 
-      {/* ── MODALS ── */}
-
-      {/* Edit apt unic */}
+      {/* MODAL EDIT APT */}
       {modal === 'editApt' && (
         <Modal title={`Editează AP ${editData.nr}`} onClose={() => setModal(null)}>
-          <div className="fg"><label className="fl">Firmă</label><input className="fi" value={editData.firma||''} onChange={e => setEditData({...editData, firma: e.target.value})} /></div>
-          <div className="fg"><label className="fl">Notă</label><input className="fi" value={editData.nota||''} onChange={e => setEditData({...editData, nota: e.target.value})} /></div>
-        <div className="fg"><label className="fl">Nr. lenjerii schimbate (opțional)</label>
-  <div style={{ display:'flex', gap:6, marginTop:4 }}>
-    {[0,1,2,3,4,5,6].map(n => (
-      <div key={n} onClick={() => setEditData({...editData, nr_lenjerii: n})}
-        style={{ width:36, height:36, borderRadius:8, border:`1.5px solid ${editData.nr_lenjerii===n?'#1F3864':'#ddd'}`, background:editData.nr_lenjerii===n?'#1F3864':'#fff', color:editData.nr_lenjerii===n?'#fff':'#555', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontWeight:600, fontSize:13 }}>
-        {n===0?'—':n}
-      </div>
-    ))}
-  </div>
-</div>
+          <div className="fg"><label className="fl">Firmă</label>
+            <input className="fi" value={editData.firma||''} onChange={e => setEditData({...editData, firma: e.target.value})} />
+          </div>
+          <div className="fg"><label className="fl">Notă</label>
+            <input className="fi" value={editData.nota||''} onChange={e => setEditData({...editData, nota: e.target.value})} />
+          </div>
           <div className="r2">
             <div className="fg"><label className="fl">Status</label>
               <select className="fi" value={editData.status||'activ'} onChange={e => setEditData({...editData, status: e.target.value})}>
@@ -458,16 +415,39 @@ export default function AdminPage() {
                 <option value="elib">Eliberează</option><option value="maint">Mentenanță</option><option value="special">Special</option>
               </select>
             </div>
-            <div className="fg"><label className="fl">Data elib.</label><input className="fi" value={editData.data_elib||''} placeholder="ex: 20.05" onChange={e => setEditData({...editData, data_elib: e.target.value})} /></div>
+            <div className="fg"><label className="fl">Data elib.</label>
+              <input className="fi" value={editData.data_elib||''} placeholder="ex: 20.05" onChange={e => setEditData({...editData, data_elib: e.target.value})} />
+            </div>
           </div>
           <div className="r2">
-            <div className="fg"><label className="fl">Preț/noapte</label><input className="fi" type="number" value={editData.pret||''} onChange={e => setEditData({...editData, pret: e.target.value})} /></div>
+            <div className="fg"><label className="fl">Preț/noapte (cazare) sau /lună (chirie)</label>
+              <input className="fi" type="number" value={editData.pret||''} onChange={e => setEditData({...editData, pret: e.target.value})} />
+            </div>
             <div className="fg"><label className="fl">Plată</label>
               <select className="fi" value={editData.plata||'OP'} onChange={e => setEditData({...editData, plata: e.target.value})}>
                 <option value="OP">OP</option><option value="Cash">Cash</option>
               </select>
             </div>
           </div>
+          <div className="fg"><label className="fl">Tip serviciu</label>
+            <select className="fi" value={editData.tip_serviciu||'cazare'} onChange={e => setEditData({...editData, tip_serviciu: e.target.value})}>
+              <option value="cazare">Cazare (preț/noapte)</option>
+              <option value="chirie">Chirie (preț/lună)</option>
+            </select>
+          </div>
+          {editData.tip_serviciu === 'chirie' && (
+            <div className="r2">
+              <div className="fg"><label className="fl">Utilități (RON)</label>
+                <input className="fi" type="number" placeholder="0" value={editData.pret_utilitati||''} onChange={e => setEditData({...editData, pret_utilitati: e.target.value})} />
+              </div>
+              <div className="fg"><label className="fl">Tip utilități</label>
+                <select className="fi" value={editData.utilitati_tip||'fix'} onChange={e => setEditData({...editData, utilitati_tip: e.target.value})}>
+                  <option value="fix">Fix (sumă fixă/lună)</option>
+                  <option value="variabil">Variabil (introduc lunar)</option>
+                </select>
+              </div>
+            </div>
+          )}
           <div style={{ height: '0.5px', background: '#eee', margin: '10px 0' }}></div>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 6 }}>PROGRAMARE AUTOMATĂ CURĂȚENIE (opțional)</div>
           <div className="r2">
@@ -485,33 +465,17 @@ export default function AdminPage() {
           </div>
           {editData.nr_nopti && editData.data_checkin && (
             <div style={{ fontSize: 12, color: '#375623', background: '#E2EFDA', padding: '6px 10px', borderRadius: 7, marginTop: 4 }}>
-              ✓ Curățenie generală programată automat pe {(() => { try { const d = new Date(editData.data_checkin); d.setDate(d.getDate() + parseInt(editData.nr_nopti)); return d.toLocaleDateString('ro-RO') } catch(e) { return '' } })()}
+              ✓ Curățenie generală pe {(() => { try { const d = new Date(editData.data_checkin); d.setDate(d.getDate() + parseInt(editData.nr_nopti)); return d.toLocaleDateString('ro-RO') } catch(e) { return '' } })()}
             </div>
           )}
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-         <div style={{ height:'0.5px', background:'#eee', margin:'10px 0' }}></div>
-          <div style={{ fontSize:11, fontWeight:600, color:'#888', marginBottom:6 }}>PROGRAMARE AUTOMATĂ (opțional)</div>
-          <div className="r2">
-            <div className="fg"><label className="fl">Data check-in</label><input className="fi" type="date" value={editData.data_checkin||''} onChange={e => setEditData({...editData, data_checkin: e.target.value})} /></div>
-            <div className="fg"><label className="fl">Nr. nopți</label>
-              <select className="fi" value={editData.nr_nopti||''} onChange={e => setEditData({...editData, nr_nopti: e.target.value})}>
-                <option value="">— nu seta —</option>
-                {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} {n===1?'noapte':'nopți'}</option>)}
-              </select>
-            </div>
-          </div>
-          {editData.nr_nopti && editData.data_checkin && (
-            <div style={{ fontSize:12, color:'#375623', background:'#E2EFDA', padding:'6px 10px', borderRadius:7, marginTop:4 }}>
-              ✓ Curățenie generală pe {(() => { try { const d=new Date(editData.data_checkin); d.setDate(d.getDate()+parseInt(editData.nr_nopti)); return d.toLocaleDateString('ro-RO') } catch(e){return ''} })()}
-            </div>
-          )}
             <button className="btn btn-p" style={{ flex: 1 }} onClick={saveEditApt}>Salvează</button>
             <button className="btn" onClick={() => setModal(null)}>Anulează</button>
           </div>
         </Modal>
       )}
 
-      {/* Add apt */}
+      {/* MODAL ADD APT */}
       {modal === 'addApt' && (
         <Modal title="Apartament nou" onClose={() => setModal(null)}>
           <div className="r2">
@@ -530,22 +494,40 @@ export default function AdminPage() {
                 <option value="activ">Ocupat</option><option value="liber">Liber</option><option value="maint">Mentenanță</option>
               </select>
             </div>
-            <div className="fg"><label className="fl">Preț/noapte</label><input className="fi" type="number" placeholder="85" value={editData.pret||''} onChange={e => setEditData({...editData, pret: e.target.value})} /></div>
+            <div className="fg"><label className="fl">Preț</label><input className="fi" type="number" placeholder="85" value={editData.pret||''} onChange={e => setEditData({...editData, pret: e.target.value})} /></div>
           </div>
-          <div className="fg"><label className="fl">Plată</label>
-            <select className="fi" value={editData.plata||'OP'} onChange={e => setEditData({...editData, plata: e.target.value})}>
-              <option value="OP">OP</option><option value="Cash">Cash</option>
-            </select>
+          <div className="r2">
+            <div className="fg"><label className="fl">Plată</label>
+              <select className="fi" value={editData.plata||'OP'} onChange={e => setEditData({...editData, plata: e.target.value})}>
+                <option value="OP">OP</option><option value="Cash">Cash</option>
+              </select>
+            </div>
+            <div className="fg"><label className="fl">Tip serviciu</label>
+              <select className="fi" value={editData.tip_serviciu||'cazare'} onChange={e => setEditData({...editData, tip_serviciu: e.target.value})}>
+                <option value="cazare">Cazare (preț/noapte)</option>
+                <option value="chirie">Chirie (preț/lună)</option>
+              </select>
+            </div>
           </div>
+          {editData.tip_serviciu === 'chirie' && (
+            <div className="r2">
+              <div className="fg"><label className="fl">Utilități (RON)</label>
+                <input className="fi" type="number" placeholder="0" value={editData.pret_utilitati||''} onChange={e => setEditData({...editData, pret_utilitati: e.target.value})} />
+              </div>
+              <div className="fg"><label className="fl">Tip utilități</label>
+                <select className="fi" value={editData.utilitati_tip||'fix'} onChange={e => setEditData({...editData, utilitati_tip: e.target.value})}>
+                  <option value="fix">Fix</option><option value="variabil">Variabil</option>
+                </select>
+              </div>
+            </div>
+          )}
           <div style={{ height: '0.5px', background: '#eee', margin: '10px 0' }}></div>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 6 }}>PROGRAMARE AUTOMATĂ CURĂȚENIE (opțional)</div>
           <div className="r2">
-            <div className="fg">
-              <label className="fl">Data check-in</label>
+            <div className="fg"><label className="fl">Data check-in</label>
               <input className="fi" type="date" value={editData.data_checkin||''} onChange={e => setEditData({...editData, data_checkin: e.target.value})} />
             </div>
-            <div className="fg">
-              <label className="fl">Nr. nopți (1-7)</label>
+            <div className="fg"><label className="fl">Nr. nopți (1-7)</label>
               <select className="fi" value={editData.nr_nopti||''} onChange={e => setEditData({...editData, nr_nopti: e.target.value})}>
                 <option value="">— nu seta —</option>
                 {[1,2,3,4,5,6,7].map(n => <option key={n} value={n}>{n} {n===1?'noapte':'nopți'}</option>)}
@@ -554,7 +536,7 @@ export default function AdminPage() {
           </div>
           {editData.nr_nopti && editData.data_checkin && (
             <div style={{ fontSize: 12, color: '#375623', background: '#E2EFDA', padding: '6px 10px', borderRadius: 7, marginTop: 4 }}>
-              ✓ Curățenie generală programată automat pe {(() => { try { const d = new Date(editData.data_checkin); d.setDate(d.getDate() + parseInt(editData.nr_nopti)); return d.toLocaleDateString('ro-RO') } catch(e) { return '' } })()}
+              ✓ Curățenie generală pe {(() => { try { const d = new Date(editData.data_checkin); d.setDate(d.getDate() + parseInt(editData.nr_nopti)); return d.toLocaleDateString('ro-RO') } catch(e) { return '' } })()}
             </div>
           )}
           <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
@@ -564,7 +546,7 @@ export default function AdminPage() {
         </Modal>
       )}
 
-      {/* Multi edit */}
+      {/* MODAL MULTI EDIT */}
       {modal === 'medit' && (
         <Modal title={`Editează ${selApts.size} apartamente`} onClose={() => setModal(null)}>
           <div className="ai">AP {Array.from(selApts).join(', AP ')}</div>
@@ -595,7 +577,7 @@ export default function AdminPage() {
         </Modal>
       )}
 
-      {/* Curățenie unic */}
+      {/* MODAL CURATENIE UNIC */}
       {modal === 'curUnic' && (
         <Modal title="Programează curățenie" onClose={() => setModal(null)}>
           <div className="fg"><label className="fl">Apartament</label>
@@ -604,9 +586,9 @@ export default function AdminPage() {
             </select>
           </div>
           <div className="fg"><label className="fl">Tip</label>
-            <select className="fi" value={editData.tip_curatenie||'generala'} onChange={e => setEditData({...editData, tip_curatenie: e.target.value})}>
-              <option value="generala">Generală — la plecarea clientului</option>
+            <select className="fi" value={editData.tip_curatenie||'intretinere'} onChange={e => setEditData({...editData, tip_curatenie: e.target.value})}>
               <option value="intretinere">Întreținere — același client</option>
+              <option value="generala">Generală — la plecarea clientului</option>
               <option value="urgenta">Urgență</option>
             </select>
           </div>
@@ -619,7 +601,7 @@ export default function AdminPage() {
         </Modal>
       )}
 
-      {/* Curățenie multiplă */}
+      {/* MODAL CURATENIE MULTIPLA */}
       {modal === 'curMulti' && (
         <Modal title="Curățenie multiplă" onClose={() => setModal(null)}>
           <div className="fg">
@@ -640,8 +622,10 @@ export default function AdminPage() {
             </div>
           </div>
           <div className="fg"><label className="fl">Tip</label>
-            <select className="fi" value={editData.tip_curatenie||'generala'} onChange={e => setEditData({...editData, tip_curatenie: e.target.value})}>
-              <option value="generala">Generală</option><option value="intretinere">Întreținere</option><option value="urgenta">Urgență</option>
+            <select className="fi" value={editData.tip_curatenie||'intretinere'} onChange={e => setEditData({...editData, tip_curatenie: e.target.value})}>
+              <option value="intretinere">Întreținere</option>
+              <option value="generala">Generală</option>
+              <option value="urgenta">Urgență</option>
             </select>
           </div>
           <div className="fg"><label className="fl">Data</label><input className="fi" type="date" value={editData.data_programata||''} onChange={e => setEditData({...editData, data_programata: e.target.value})} /></div>
@@ -654,13 +638,15 @@ export default function AdminPage() {
         </Modal>
       )}
 
-      {/* Curățenie din apt tab */}
+      {/* MODAL CURATENIE DIN APT TAB */}
       {modal === 'mcur' && (
         <Modal title={`Curățenie — ${selApts.size} apartamente`} onClose={() => setModal(null)}>
           <div className="ai">AP {Array.from(selApts).join(', AP ')}</div>
           <div className="fg"><label className="fl">Tip</label>
-            <select className="fi" value={editData.tip_curatenie||'generala'} onChange={e => setEditData({...editData, tip_curatenie: e.target.value})}>
-              <option value="generala">Generală</option><option value="intretinere">Întreținere</option><option value="urgenta">Urgență</option>
+            <select className="fi" value={editData.tip_curatenie||'intretinere'} onChange={e => setEditData({...editData, tip_curatenie: e.target.value})}>
+              <option value="intretinere">Întreținere</option>
+              <option value="generala">Generală</option>
+              <option value="urgenta">Urgență</option>
             </select>
           </div>
           <div className="fg"><label className="fl">Data</label><input className="fi" type="date" value={editData.data_programata||''} onChange={e => setEditData({...editData, data_programata: e.target.value})} /></div>
@@ -672,7 +658,7 @@ export default function AdminPage() {
         </Modal>
       )}
 
-      {/* Click celulă calendar */}
+      {/* MODAL CLICK CELULA CALENDAR */}
       {modal === 'cell' && (
         <Modal title={`AP ${editData.nr_apt} — ${editData.data_programata}`} onClose={() => setModal(null)}>
           {editData.cell ? (
@@ -692,9 +678,9 @@ export default function AdminPage() {
             <>
               <p style={{ fontSize: 13, color: '#888', marginBottom: 10 }}>Nicio curățenie programată.</p>
               <div className="fg"><label className="fl">Tip</label>
-                <select className="fi" value={editData.tip_curatenie||'generala'} onChange={e => setEditData({...editData, tip_curatenie: e.target.value})}>
-                  <option value="generala">Generală — la plecare</option>
+                <select className="fi" value={editData.tip_curatenie||'intretinere'} onChange={e => setEditData({...editData, tip_curatenie: e.target.value})}>
                   <option value="intretinere">Întreținere — același client</option>
+                  <option value="generala">Generală — la plecare</option>
                   <option value="urgenta">Urgență</option>
                 </select>
               </div>
@@ -707,7 +693,7 @@ export default function AdminPage() {
         </Modal>
       )}
 
-      {/* Add istoric */}
+      {/* MODAL ADD ISTORIC */}
       {modal === 'addIst' && (
         <Modal title="Adaugă înregistrare istorică" onClose={() => setModal(null)}>
           <div className="fg"><label className="fl">Firmă</label><input className="fi" placeholder="ex: ELM" value={editData.firma||''} onChange={e => setEditData({...editData, firma: e.target.value})} /></div>
