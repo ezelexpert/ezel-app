@@ -278,6 +278,7 @@ export default function AdminPage() {
                 <option value="maint">Mentenanță</option>
               </select>
               <button className="btn btn-p" onClick={() => { setEditData({ tip: 'simplu', status: 'liber', plata: 'OP', tip_serviciu: 'cazare' }); setModal('addApt') }}>+ Apt nou</button>
+              <button className="btn" style={{ background:'#EBF1FB', color:'#1F3864', border:'1px solid #90B8E8' }} onClick={() => { setEditData({}); setModal('editLocuri') }}>🛏 Locuri</button>
               <button className="btn btn-o" onClick={() => { setEditData({}); setModal('medit') }} disabled={selApts.size === 0}>✏️ Editează</button>
               <button className="btn btn-g" onClick={() => { setEditData({ data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('mcur') }} disabled={selApts.size === 0}>🧹 Curățenie</button>
             </div>
@@ -304,7 +305,7 @@ export default function AdminPage() {
                       <td><strong>{a.nr}</strong>{isDbl && <span className="tip-d">2x</span>}</td>
                       <td style={{ textAlign:'center' }}>
                         <span style={{ display:'inline-flex', alignItems:'center', gap:3, fontSize:12, fontWeight:600, color:'#1F3864', background:'#EBF1FB', padding:'2px 8px', borderRadius:8 }}>
-                          🛏 {a.nr_locuri||2}
+                          {a.nr_locuri||2} locuri
                         </span>
                       </td>
                       <td>{a.firma || '—'}</td>
@@ -429,16 +430,6 @@ export default function AdminPage() {
           <div className="fg"><label className="fl">Notă</label>
             <input className="fi" value={editData.nota||''} onChange={e => setEditData({...editData, nota: e.target.value})} />
           </div>
-          <div className="fg"><label className="fl">🛏 Nr. locuri (paturi)</label>
-            <div style={{ display:'flex', gap:6, marginTop:4 }}>
-              {[1,2,3,4,5,6].map(n => (
-                <div key={n} onClick={() => setEditData({...editData, nr_locuri: n})}
-                  style={{ width:42, height:42, borderRadius:9, border:`2px solid ${(editData.nr_locuri||2)===n?'#1F3864':'#ddd'}`, background:(editData.nr_locuri||2)===n?'#1F3864':'#fff', color:(editData.nr_locuri||2)===n?'#fff':'#555', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontWeight:700, fontSize:16 }}>
-                  {n}
-                </div>
-              ))}
-            </div>
-          </div>
           <div className="r2">
             <div className="fg"><label className="fl">Status</label>
               <select className="fi" value={editData.status||'activ'} onChange={e => setEditData({...editData, status: e.target.value})}>
@@ -506,6 +497,34 @@ export default function AdminPage() {
         </Modal>
       )}
 
+      {/* MODAL EDIT LOCURI */}
+      {modal === 'editLocuri' && (
+        <Modal title="Modifică nr. locuri per apartament" onClose={() => setModal(null)}>
+          <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+            {apts.filter(a => a.status !== 'maint').map(a => (
+              <div key={a.nr} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 0', borderBottom:'1px solid #f0f0f0' }}>
+                <div style={{ width:44, fontWeight:700, color:'#1F3864', fontSize:13, flexShrink:0 }}>AP {a.nr}</div>
+                <div style={{ fontSize:11, color:'#888', flex:1, minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{a.firma||'Liber'}</div>
+                <div style={{ display:'flex', gap:4, flexShrink:0 }}>
+                  {[1,2,3,4,5,6].map(n => (
+                    <div key={n} onClick={async () => {
+                      setApts(prev => prev.map(x => x.nr===a.nr ? {...x, nr_locuri: n} : x))
+                      await updateApartament(a.nr, { nr_locuri: n })
+                    }}
+                      style={{ width:32, height:32, borderRadius:7, border:`2px solid ${(a.nr_locuri||2)===n?'#1F3864':'#ddd'}`, background:(a.nr_locuri||2)===n?'#1F3864':'#fff', color:(a.nr_locuri||2)===n?'#fff':'#555', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontWeight:700, fontSize:13 }}>
+                      {n}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display:'flex', justifyContent:'flex-end', marginTop:12 }}>
+            <button className="btn btn-p" onClick={() => setModal(null)}>Gata</button>
+          </div>
+        </Modal>
+      )}
+
       {/* MODAL ADD APT */}
       {modal === 'addApt' && (
         <Modal title="Apartament nou" onClose={() => setModal(null)}>
@@ -519,16 +538,6 @@ export default function AdminPage() {
           </div>
           <div className="fg"><label className="fl">Firmă</label><input className="fi" value={editData.firma||''} onChange={e => setEditData({...editData, firma: e.target.value})} /></div>
           <div className="fg"><label className="fl">Notă</label><input className="fi" value={editData.nota||''} onChange={e => setEditData({...editData, nota: e.target.value})} /></div>
-          <div className="fg"><label className="fl">🛏 Nr. locuri (paturi)</label>
-            <div style={{ display:'flex', gap:6, marginTop:4 }}>
-              {[1,2,3,4,5,6].map(n => (
-                <div key={n} onClick={() => setEditData({...editData, nr_locuri: n})}
-                  style={{ width:42, height:42, borderRadius:9, border:`2px solid ${(editData.nr_locuri||2)===n?'#1F3864':'#ddd'}`, background:(editData.nr_locuri||2)===n?'#1F3864':'#fff', color:(editData.nr_locuri||2)===n?'#fff':'#555', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontWeight:700, fontSize:16 }}>
-                  {n}
-                </div>
-              ))}
-            </div>
-          </div>
           <div className="r2">
             <div className="fg"><label className="fl">Status</label>
               <select className="fi" value={editData.status||'liber'} onChange={e => setEditData({...editData, status: e.target.value})}>
