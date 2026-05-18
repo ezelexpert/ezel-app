@@ -164,7 +164,7 @@ export async function genereazaSaptamana() {
       return b.zileTrecute - a.zileTrecute
     })
 
-    // 5. Distribuie pe zile respectand max 12/zi si regulile ELM
+    // 5. Distribuie UNIFORM pe zile respectand max 12/zi si regulile ELM
     const zile = zileSaptamana(luni)
     const slot = {} // dateStr -> count
     zile.forEach(z => { slot[dateStr(z)] = 0 })
@@ -178,54 +178,74 @@ export async function genereazaSaptamana() {
       }
     })
 
-    const deProgramat = [] // { nr_apt, data, tip_apt, firma, tip_curatenie }
+    const deProgramat = []
     let programate = 0, skipped = 0
 
-    for (const item of deSchedulat) {
-      const apt = item.apt
+    // Separam ELM de restul
+    const deSchedulatElm = deSchedulat.filter(x => x.isElm)
+    const deSchedulatRest = deSchedulat.filter(x => !x.isElm)
 
-      // Verifica daca are deja curatenie in saptamana viitoare
-      const areInSapt = (deja[apt.nr] || []).some(d => d >= luniStr && d <= vineriStr)
-      if (areInSapt) { skipped++; continue }
-
-      // Gaseste ziua potrivita
-      let ziGasita = null
-
-      if (item.isElm) {
-        // ELM: doar luni sau vineri
-        const elmZile = zile.filter(z => isLuniSauVineri(z))
-        for (const z of elmZile) {
-          const ds = dateStr(z)
-          if (slot[ds] < MAX_PER_ZI) {
-            ziGasita = ds; break
-          }
-        }
-      } else {
-        // Celelalte: incearca de la targetDate spre vineri
-        const sortedZile = [...zile].sort((a, b) => {
-          const da = Math.abs(diffZile(item.targetDate, a))
-          const db = Math.abs(diffZile(item.targetDate, b))
-          return da - db
-        })
-        for (const z of sortedZile) {
-          const ds = dateStr(z)
-          if (slot[ds] < MAX_PER_ZI) {
-            ziGasita = ds; break
-          }
+    // Functie care gaseste ziua cu cel mai putine programari (distributie uniforma)
+    // dintre zilele disponibile, respectand max 12/zi
+    function gasesteCeaMaiLibera(zileDisponibile) {
+      let minCount = Infinity, ziGasita = null
+      for (const z of zileDisponibile) {
+        const ds = dateStr(z)
+        if (slot[ds] < MAX_PER_ZI && slot[ds] < minCount) {
+          minCount = slot[ds]
+          ziGasita = ds
         }
       }
+      return ziGasita
+    }
 
+    // 5a. Programeaza ELM mai intai (doar luni si vineri)
+    const elmZile = zile.filter(z => isLuniSauVineri(z))
+    for (const item of deSchedulatElm) {
+      const areInSapt = (deja[item.apt.nr] || []).some(d => d >= luniStr && d <= vineriStr)
+      if (areInSapt) { skipped++; continue }
+      const ziGasita = gasesteCeaMaiLibera(elmZile)
+      if (!ziGasita) { skipped++; continue }
+      slot[ziGasita]++
+      deProgramat.push({
+        data_programata: ziGasita,
+        nr_apt: item.apt.nr,
+        tip_apt: item.apt.tip || 'simplu',
+        firma: item.apt.firma || '',
+        tip_curatenie: 'intretinere',
+        status_curatenie: 'programata',
+        observatii: 'Auto-generat (ELM)',
+        amanare_status: ''
+      })
+      programate++
+    }
+
+    // 5b. Programeaza restul cu distributie uniforma
+    // Impartim in grupe egale pe cele 5 zile
+    // Urgent (deadline aproape) merg primii, restul distribuit uniform
+    const urgent = deSchedulatRest.filter(x => x.urgenta)
+    const normal = deSchedulatRest.filter(x => !x.urgenta)
+
+    // Sorteaza normal dupa targetDate ca sa respecte preferintele de zi
+    normal.sort((a, b) => a.targetDate - b.targetDate)
+
+    for (const item of [...urgent, ...normal]) {
+      const areInSapt = (deja[item.apt.nr] || []).some(d => d >= luniStr && d <= vineriStr)
+      if (areInSapt) { skipped++; continue }
+
+      // Alege ziua cu cel mai putine programari (distributie uniforma)
+      const ziGasita = gasesteCeaMaiLibera(zile)
       if (!ziGasita) { skipped++; continue }
 
       slot[ziGasita]++
       deProgramat.push({
         data_programata: ziGasita,
-        nr_apt: apt.nr,
-        tip_apt: apt.tip || 'simplu',
-        firma: apt.firma || '',
+        nr_apt: item.apt.nr,
+        tip_apt: item.apt.tip || 'simplu',
+        firma: item.apt.firma || '',
         tip_curatenie: 'intretinere',
         status_curatenie: 'programata',
-        observatii: 'Auto-generat vineri',
+        observatii: item.urgenta ? 'Auto-generat (urgent)' : 'Auto-generat',
         amanare_status: ''
       })
       programate++
