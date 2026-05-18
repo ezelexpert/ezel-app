@@ -104,7 +104,8 @@ export async function addApartament(apt) {
       status: apt.status, pret: apt.pret, plata: apt.plata,
       tip_serviciu: apt.tip_serviciu || 'cazare',
       pret_utilitati: apt.pret_utilitati || 0,
-      utilitati_tip: apt.utilitati_tip || 'fix'
+      utilitati_tip: apt.utilitati_tip || 'fix',
+      nr_locuri: apt.nr_locuri || 2
     })
   if (error) throw error
   await addLog('admin', 'Adaugat apt', apt.nr, apt.firma)
