@@ -275,6 +275,7 @@ export async function getStatistici() {
   const { data, error } = await supabase
     .from('curatenie').select('*')
     .eq('status_curatenie', 'finalizata')
+    .or('deja_curat.is.null,deja_curat.eq.false')
     .order('data_programata', { ascending: false })
   if (error) throw error
 
