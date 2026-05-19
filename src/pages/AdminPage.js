@@ -288,6 +288,10 @@ export default function AdminPage() {
               setTimeout(() => setSchedulerMsg(null), 6000)
               loadAll()
             }}
+            onStergeCuratenii={async (ids) => {
+              for (const id of ids) await stergeCuratenie(id)
+              const c = await getCuratenie(); setCuratenii(c)
+            }}
             onAddUnic={() => { setEditData({ nr_apt: apts[0]?.nr, data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('curUnic') }}
           />
         )}
