@@ -13,10 +13,12 @@ import MentenantaTab from './MentenantaTab'
 import AmanariTab from './AmanariTab'
 import IncasariTab from './IncasariTab'
 import SpalatoriePage from './SpalatoriePage'
+import SalariiTab from './SalariiTab'
 import { checkSiRuleazaVineri, genereazaSaptamana } from '../lib/autoScheduler'
+import { getNume } from '../lib/auth'
 
-const TABS = ['📅 Calendar', '🚪 Apartamente', '🏢 Firme', '📋 Istoric', '💰 Incasari', '📊 Statistici', '🔧 Mentenanta', '📅 Amanari', '🧺 Spalatorie']
-const TAB_KEYS = ['calendar', 'apartamente', 'firme', 'istoric', 'incasari', 'statistici', 'mentenanta', 'amanari', 'spalatorie']
+const TABS = ['📅 Calendar', '🚪 Apartamente', '🏢 Firme', '📋 Istoric', '💰 Incasari', '📊 Statistici', '🔧 Mentenanta', '📅 Amanari', '🧺 Spalatorie', '💵 Salarii']
+const TAB_KEYS = ['calendar', 'apartamente', 'firme', 'istoric', 'incasari', 'statistici', 'mentenanta', 'amanari', 'spalatorie', 'salarii']
 const LUNI = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie']
 const ST_MAP = { activ: ['bb','Ocupat'], elib: ['br2','Elib.'], special: ['bp2','Special'], liber: ['bg2','Liber'], maint: ['ba','Mentenanță'] }
 
@@ -246,7 +248,7 @@ export default function AdminPage() {
       <div style={{ background: '#1F3864', color: '#fff', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 15, fontWeight: 700 }}>EZEL — Manager</div>
-          <div style={{ fontSize: 11, opacity: .7 }}>{new Date().toLocaleDateString('ro-RO', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+          <div style={{ fontSize: 11, opacity: .7 }}>{new Date().toLocaleDateString('ro-RO', { weekday: 'long', day: 'numeric', month: 'long' })} · {getNume()}</div>
         </div>
         <button className="btn" style={{ background: 'rgba(255,255,255,.18)', border: '1px solid rgba(255,255,255,.3)', color: '#fff', fontSize: 12 }} onClick={handleLogout}>Ieși</button>
       </div>
@@ -462,6 +464,7 @@ export default function AdminPage() {
         {tab === 6 && <MentenantaTab />}
         {tab === 7 && <AmanariTab onRefreshCal={loadAll} />}
         {tab === 8 && <SpalatoriePage />}
+        {tab === 9 && <SalariiTab />}
       </div>
 
       {/* MODAL EDIT APT */}
