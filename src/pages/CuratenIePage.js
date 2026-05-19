@@ -9,9 +9,8 @@ const CHECKLIST_SIMPLU = [
   'Praf șters pe toate suprafețele',
   'Baie curățată și dezinfectată',import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { logout } from '../lib/auth'
 import { getCuratenie, getCuratenieAzi, marcheazaStatus, adaugaMentenanta, propuneAmanare, supabase } from '../lib/supabase'
-import { getNume, getUser } from '../lib/auth'
+import { logout, getNume, getUser } from '../lib/auth'
 
 const CHECKLIST_SIMPLU = [
   'Lenjerie de pat schimbată',
