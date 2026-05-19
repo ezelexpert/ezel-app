@@ -105,6 +105,11 @@ export default function CuratenIePage() {
 
   const user = getUser()
   const nume = getNume()
+  if (user?.rol === 'admin') {
+  // Managerii nu se ponteaza - redirect la admin
+  navigate('/admin', { replace: true })
+  return null
+}
 
   useEffect(() => { load(); loadPontaj() }, [])
 
