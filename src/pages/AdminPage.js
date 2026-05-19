@@ -4,7 +4,7 @@ import { logout } from '../lib/auth'
 import {
   getApartamente, updateApartament, updateApartamenteMultiple, addApartament,
   getCuratenie, programeazaCuratenie, programeazaCuratenieMultipla, marcheazaStatus, stergeCuratenie,
-  getIstoric, adaugaIstoric, stergeIstoric
+  getIstoric, adaugaIstoric, stergeIstoric, supabase
 } from '../lib/supabase'
 import Calendar from '../components/Calendar'
 import Modal from '../components/Modal'
@@ -43,24 +43,7 @@ export default function AdminPage() {
     setLoading(true)
     try {
       const [a, c, i] = await Promise.all([getApartamente(), getCuratenie(), getIstoric()])
-      // Verifica apartamente cu data_elib depasita -> seteaza liber
-const azi = new Date().toISOString().split('T')[0]
-const deLiberat = a.filter(apt =>
-  apt.status === 'elib' && apt.data_elib && apt.data_elib < azi
-)
-if (deLiberat.length > 0) {
-  const resetFields = { status: 'liber', firma: '', nota: '', data_elib: '', pret: 0, pret_utilitati: 0, tip_serviciu: 'cazare', utilitati_tip: 'fix' }
-  for (const apt of deLiberat) {
-    await updateApartament(apt.nr, resetFields)
-  }
-  const aActualizat = a.map(apt =>
-    deLiberat.find(d => d.nr === apt.nr) ? { ...apt, ...resetFields } : apt
-  )
-  setApts(aActualizat)
-} else {
-  setApts(a)
-}
-setCuratenii(c); setIstoric(i)
+      setApts(a); setCuratenii(c); setIstoric(i)
     } catch(e) { console.error(e) }
     setLoading(false)
   }, [])
@@ -114,7 +97,6 @@ setCuratenii(c); setIstoric(i)
       return
     }
     if (!fields.pret || Number(fields.pret) <= 0) { alert('Pretul este obligatoriu!'); return }
-    if (fields.status === 'activ' && (!fields.firma || !fields.firma.trim())) { alert('Numele firmei este obligatoriu pentru un apartament ocupat!'); return }
     if (!fields.tip_serviciu) fields.tip_serviciu = 'cazare'
     if (fields.tip_serviciu !== 'chirie') { fields.pret_utilitati = 0; fields.utilitati_tip = 'fix' }
     // Firma completata = Ocupat automat
@@ -332,6 +314,18 @@ setCuratenii(c); setIstoric(i)
                 <span className="mcnt">{selApts.size} apartamente selectate</span>
                 <button className="btn btn-o" onClick={() => { setEditData({}); setModal('medit') }}>✏️ Editează</button>
                 <button className="btn btn-g" onClick={() => { setEditData({ data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('mcur') }}>🧹 Curățenie</button>
+                <button className="btn" style={{ background:'#FDECEA', color:'#c0392b', border:'1px solid #F5A0A0' }}
+                  onClick={async () => {
+                    const list = Array.from(selApts)
+                    if (!window.confirm(`Ștergi curățeniile active pentru ${list.length} apartamente selectate?`)) return
+                    for (const nr of list) {
+                      const { data: cur } = await supabase.from('curatenie').select('id').eq('nr_apt', nr).neq('status_curatenie', 'finalizata')
+                      if (cur) for (const c of cur) await stergeCuratenie(c.id)
+                    }
+                    setCuratenii(prev => prev.filter(c => !list.includes(String(c.nr_apt)) && !list.includes(c.nr_apt) || c.status_curatenie === 'finalizata'))
+                    const fresh = await getCuratenie(); setCuratenii(fresh)
+                    clearSel()
+                  }}>🗑 Șterge curățenie</button>
                 <button className="btn" onClick={clearSel}>✕</button>
               </div>
             )}
