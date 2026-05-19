@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { logout } from '../lib/auth'
-import { getCuratenie, getCuratenieAzi, marcheazaStatus, marcheazaDejaeCurat, adaugaMentenanta, propuneAmanare, supabase } from '../lib/supabase'
+import { getCuratenie, getCuratenieAzi, marcheazaStatus, adaugaMentenanta, propuneAmanare, supabase } from '../lib/supabase'
+import { getNume } from '../lib/auth'
 
 const CHECKLIST_SIMPLU = [
   'Lenjerie de pat schimbată',
@@ -14,6 +15,7 @@ const CHECKLIST_SIMPLU = [
   'Pardoseală mopată',
   'Gunoi aruncat, sac nou pus',
   'Consumabile completate (hârtie, săpun)',
+  'Fotografie finală făcută',
 ]
 const CHECKLIST_DUBLU = [
   'Camera 1 — lenjerie schimbată',
@@ -26,6 +28,7 @@ const CHECKLIST_DUBLU = [
   'Pardoseală mopată',
   'Gunoi aruncat în toate camerele',
   'Consumabile completate (ambele băi)',
+  'Fotografie finală făcută',
 ]
 const MOTIVE_AMANARE = [
   'Clientul nu a plecat',
@@ -175,6 +178,8 @@ export default function CuratenIePage() {
   async function finalizaCuratenie(c) {
     if (!window.confirm(`Confirmi că ai finalizat curățenia la AP ${c.nr_apt}?`)) return
     const now = new Date().toLocaleString('ro-RO')
+    const numeAngajata = getNume()
+    await supabase.from('curatenie').update({ facut_de: numeAngajata }).eq('id', c.id)
     await marcheazaStatus(c.id, 'finalizata', c.nr_apt)
     const updated = {...c, status_curatenie: 'finalizata', data_finalizare: now}
     setAzi(p => p.filter(x => x.id !== c.id))
@@ -184,32 +189,6 @@ export default function CuratenIePage() {
 
   function toggleCheck(id, idx) {
     setChecks(p => ({ ...p, [id]: { ...(p[id]||{}), [idx]: !(p[id]||{})[idx] } }))
-  }
-
-  function bifezaToate(id, checklist) {
-    const allChecked = {}
-    checklist.forEach((_, i) => { allChecked[i] = true })
-    setChecks(p => ({ ...p, [id]: allChecked }))
-  }
-
-  async function handleDejaeCurat(c) {
-    if (!window.confirm(`Confirmi că AP ${c.nr_apt} este deja curat? Nu va fi contorizat în statistici.`)) return
-    const now = new Date().toLocaleString('ro-RO')
-    try {
-      await supabase.from('curatenie').update({
-        status_curatenie: 'finalizata',
-        deja_curat: true,
-        data_finalizare: now
-      }).eq('id', c.id)
-      await supabase.from('apartamente').update({
-        ultima_curatenie: now,
-        curatenie_status: 'finalizata'
-      }).eq('nr', c.nr_apt)
-      const updated = {...c, status_curatenie: 'finalizata', deja_curat: true, data_finalizare: now}
-      setAzi(p => p.filter(x => x.id !== c.id))
-      setToate(p => p.filter(x => x.id !== c.id))
-      setFinalizate(p => [updated, ...p])
-    } catch(e) { alert('Eroare. Încearcă din nou.'); console.error(e) }
   }
 
   function selectLenjerii(id, n) {
@@ -307,10 +286,7 @@ export default function CuratenIePage() {
         )}
 
         {c.status_curatenie === 'finalizata' && (
-          <div style={{ fontSize:12, color:'#888', display:'flex', alignItems:'center', gap:8 }}>
-            {c.deja_curat && <span style={{ fontSize:10, background:'#EDE7F6', color:'#4527A0', padding:'1px 7px', borderRadius:10, fontWeight:600 }}>✨ Deja curat</span>}
-            ✅ Finalizată la: {c.data_finalizare || '—'}
-          </div>
+          <div style={{ fontSize:12, color:'#888' }}>✅ Finalizată la: {c.data_finalizare || '—'}</div>
         )}
 
         {c.status_curatenie === 'in progres' && (
@@ -332,13 +308,7 @@ export default function CuratenIePage() {
             </div>
 
             {/* Checklist */}
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
-              <div style={{ fontSize:11, color:'#888' }}>{done}/{checklist.length} puncte bifate</div>
-              <button onClick={() => bifezaToate(c.id, checklist)}
-                style={{ fontSize:11, padding:'2px 10px', borderRadius:6, border:'1px solid #375623', background: allDone?'#E2EFDA':'#fff', color:'#375623', cursor:'pointer', fontWeight:600 }}>
-                {allDone ? '✓ Toate bifate' : 'Bifează toate'}
-              </button>
-            </div>
+            <div style={{ fontSize:11, color:'#888', marginBottom:4 }}>{done}/{checklist.length} puncte bifate</div>
             <div style={{ height:6, background:'#e0e0e0', borderRadius:3, marginBottom:10, overflow:'hidden' }}>
               <div style={{ height:'100%', width:`${pct}%`, background:'#375623', borderRadius:3, transition:'width .3s' }}></div>
             </div>
@@ -371,8 +341,6 @@ export default function CuratenIePage() {
                 onClick={() => deschideModalMent(c)}>🔧 Mentenanță</button>
               <button style={{ padding:'9px 12px', borderRadius:9, border:'1.5px solid #90B8E8', background:'#EBF1FB', color:'#1F3864', cursor:'pointer', fontSize:13, fontWeight:600 }}
                 onClick={() => deschideModalAman(c)}>📅 Amână</button>
-              <button style={{ width:'100%', padding:'9px 16px', borderRadius:9, border:'1.5px solid #C5B3F0', background:'#EDE7F6', color:'#4527A0', cursor:'pointer', fontSize:12, fontWeight:600, marginTop:4 }}
-                onClick={() => handleDejaeCurat(c)}>✨ Apartamentul este deja curat</button>
             </>
           )}
         </div>
@@ -464,7 +432,7 @@ export default function CuratenIePage() {
       <div style={{ background:'#375623', color:'#fff', padding:'12px 16px', display:'flex', alignItems:'center', gap:10, position:'sticky', top:0, zIndex:50 }}>
         <div style={{ flex:1 }}>
           <div style={{ fontSize:16, fontWeight:700 }}>🧹 Curățenie EZEL</div>
-          <div style={{ fontSize:11, opacity:.8 }}>{new Date().toLocaleDateString('ro-RO',{weekday:'long',day:'numeric',month:'long'})}</div>
+          <div style={{ fontSize:11, opacity:.8 }}>{getNume()} · {new Date().toLocaleDateString('ro-RO',{weekday:'long',day:'numeric',month:'long'})}</div>
         </div>
         <button style={{ padding:'5px 12px', background:'rgba(255,255,255,.2)', border:'1px solid rgba(255,255,255,.35)', color:'#fff', borderRadius:7, cursor:'pointer', fontSize:12 }}
           onClick={handleLogout}>Ieși</button>
