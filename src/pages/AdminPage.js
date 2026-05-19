@@ -14,11 +14,12 @@ import AmanariTab from './AmanariTab'
 import IncasariTab from './IncasariTab'
 import SpalatoriePage from './SpalatoriePage'
 import SalariiTab from './SalariiTab'
+import PontajTab from './PontajTab'
 import { checkSiRuleazaVineri, genereazaSaptamana } from '../lib/autoScheduler'
 import { getNume } from '../lib/auth'
 
-const TABS = ['📅 Calendar', '🚪 Apartamente', '🏢 Firme', '📋 Istoric', '💰 Incasari', '📊 Statistici', '🔧 Mentenanta', '📅 Amanari', '🧺 Spalatorie', '💵 Salarii']
-const TAB_KEYS = ['calendar', 'apartamente', 'firme', 'istoric', 'incasari', 'statistici', 'mentenanta', 'amanari', 'spalatorie', 'salarii']
+const TABS = ['📅 Calendar', '🚪 Apartamente', '🏢 Firme', '📋 Istoric', '💰 Incasari', '📊 Statistici', '🔧 Mentenanta', '📅 Amanari', '🧺 Spalatorie', '💵 Salarii', '⏱ Pontaj']
+const TAB_KEYS = ['calendar', 'apartamente', 'firme', 'istoric', 'incasari', 'statistici', 'mentenanta', 'amanari', 'spalatorie', 'salarii', 'pontaj']
 const LUNI = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie']
 const ST_MAP = { activ: ['bb','Ocupat'], elib: ['br2','Elib.'], special: ['bp2','Special'], liber: ['bg2','Liber'], maint: ['ba','Mentenanță'] }
 
@@ -465,6 +466,7 @@ export default function AdminPage() {
         {tab === 7 && <AmanariTab onRefreshCal={loadAll} />}
         {tab === 8 && <SpalatoriePage />}
         {tab === 9 && <SalariiTab />}
+        {tab === 10 && <PontajTab />}
       </div>
 
       {/* MODAL EDIT APT */}
