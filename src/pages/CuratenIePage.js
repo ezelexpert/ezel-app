@@ -146,31 +146,82 @@ export default function CuratenIePage() {
 
   async function clockIn() {
     if (!user) return
-    setClockLoading(true)
-    try {
-      const today = getToday()
-      const { data } = await supabase.from('pontaj').insert({
-        utilizator_id: user.id,
-        nume: nume,
-        data: today,
-        ora_intrare: new Date().toISOString()
-      }).select().single()
-      setPontajAzi(data)
-    } catch(e) { console.error(e) }
-    setClockLoading(false)
+    const acum = new Date()
+    const totalMin = acum.getHours() * 60 + acum.getMinutes()
+    const minStart = 7 * 60 + 20  // 07:20
+    const maxStart = 7 * 60 + 40  // 07:40
+
+    if (totalMin >= minStart && totalMin <= maxStart) {
+      // In interval normal - clock in direct
+      setClockLoading(true)
+      try {
+        const today = getToday()
+        const { data } = await supabase.from('pontaj').insert({
+          utilizator_id: user.id, nume: nume, data: today,
+          ora_intrare: new Date().toISOString()
+        }).select().single()
+        setPontajAzi(data)
+      } catch(e) { console.error(e) }
+      setClockLoading(false)
+    } else {
+      // In afara intervalului - trimite cerere de aprobare
+      const motivInput = window.prompt(
+        totalMin < minStart
+          ? `Este prea devreme (${acum.toLocaleTimeString('ro-RO', {hour:'2-digit',minute:'2-digit'})}). Programul începe la 07:30 (interval 07:20-07:40).\nDacă ai un motiv, scrie-l mai jos și se va trimite spre aprobare managerului:`
+          : `Este prea târziu (${acum.toLocaleTimeString('ro-RO', {hour:'2-digit',minute:'2-digit'})}). Intervalul de Clock In a expirat (07:20-07:40).\nDacă ai un motiv, scrie-l mai jos și se va trimite spre aprobare managerului:`
+      )
+      if (motivInput === null) return // a dat Cancel
+      setClockLoading(true)
+      try {
+        const today = getToday()
+        await supabase.from('pontaj_cereri').insert({
+          utilizator_id: user.id, nume: nume, data: today,
+          tip: 'intrare', ora_solicitata: new Date().toISOString(),
+          motiv: motivInput || 'Fără motiv specificat', status: 'asteptare'
+        })
+        alert('Cererea a fost trimisă managerului pentru aprobare.')
+      } catch(e) { console.error(e) }
+      setClockLoading(false)
+    }
   }
 
   async function clockOut() {
     if (!pontajAzi) return
-    setClockLoading(true)
-    try {
-      const { data } = await supabase.from('pontaj')
-        .update({ ora_iesire: new Date().toISOString() })
-        .eq('id', pontajAzi.id)
-        .select().single()
-      setPontajAzi(data)
-    } catch(e) { console.error(e) }
-    setClockLoading(false)
+    const acum = new Date()
+    const totalMin = acum.getHours() * 60 + acum.getMinutes()
+    const minEnd = 15 * 60 + 50  // 15:50
+    const maxEnd = 16 * 60 + 10  // 16:10
+
+    if (totalMin >= minEnd && totalMin <= maxEnd) {
+      // In interval normal - clock out direct
+      setClockLoading(true)
+      try {
+        const { data } = await supabase.from('pontaj')
+          .update({ ora_iesire: new Date().toISOString() })
+          .eq('id', pontajAzi.id).select().single()
+        setPontajAzi(data)
+      } catch(e) { console.error(e) }
+      setClockLoading(false)
+    } else {
+      // In afara intervalului - trimite cerere de aprobare
+      const motivInput = window.prompt(
+        totalMin < minEnd
+          ? `Este prea devreme (${acum.toLocaleTimeString('ro-RO', {hour:'2-digit',minute:'2-digit'})}). Programul se termină la 16:00 (interval 15:50-16:10).\nDacă ai un motiv, scrie-l mai jos și se va trimite spre aprobare managerului:`
+          : `Este prea târziu (${acum.toLocaleTimeString('ro-RO', {hour:'2-digit',minute:'2-digit'})}). Intervalul de Clock Out a expirat (15:50-16:10).\nDacă ai un motiv, scrie-l mai jos și se va trimite spre aprobare managerului:`
+      )
+      if (motivInput === null) return
+      setClockLoading(true)
+      try {
+        const today = getToday()
+        await supabase.from('pontaj_cereri').insert({
+          utilizator_id: user.id, nume: nume, data: today,
+          tip: 'iesire', ora_solicitata: new Date().toISOString(),
+          motiv: motivInput || 'Fără motiv specificat', status: 'asteptare'
+        })
+        alert('Cererea a fost trimisă managerului pentru aprobare.')
+      } catch(e) { console.error(e) }
+      setClockLoading(false)
+    }
   }
 
   function handleLogout() { logout(); navigate('/', { replace: true }) }
