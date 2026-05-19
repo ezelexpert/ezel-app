@@ -586,8 +586,14 @@ export default function CuratenIePage() {
         ))}
       </div>
 
-      <div style={{ padding:14, maxWidth:600, margin:'0 auto' }}>
-        {tab === 2 ? renderSpalatorie() :
+   <div style={{ padding:14, maxWidth:600, margin:'0 auto' }}>
+        {!esteIntrată ? (
+          <div style={{ textAlign:'center', padding:'60px 20px' }}>
+            <div style={{ fontSize:52, marginBottom:16 }}>🔒</div>
+            <div style={{ fontSize:16, fontWeight:700, color:'#1F3864', marginBottom:8 }}>Dai Clock In pentru a începe</div>
+            <div style={{ fontSize:13, color:'#888' }}>Trebuie să te pontezi înainte de a vedea curățeniile de azi.</div>
+          </div>
+        ) : tab === 2 ? renderSpalatorie() :
           loading ? <div style={{ textAlign:'center', padding:40, color:'#aaa' }}>Se încarcă...</div>
           : lists[tab]?.length === 0 ? (
             <div style={{ textAlign:'center', padding:'50px 20px', color:'#bbb' }}>
