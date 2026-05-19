@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { logout } from '../lib/auth'
 import { getCuratenie, getCuratenieAzi, marcheazaStatus, adaugaMentenanta, propuneAmanare, supabase } from '../lib/supabase'
-import { getNume } from '../lib/auth'
+import { getNume, getUser } from '../lib/auth'
 
 const CHECKLIST_SIMPLU = [
   'Lenjerie de pat schimbată',
@@ -15,7 +15,6 @@ const CHECKLIST_SIMPLU = [
   'Pardoseală mopată',
   'Gunoi aruncat, sac nou pus',
   'Consumabile completate (hârtie, săpun)',
-  'Fotografie finală făcută',
 ]
 const CHECKLIST_DUBLU = [
   'Camera 1 — lenjerie schimbată',
@@ -28,7 +27,6 @@ const CHECKLIST_DUBLU = [
   'Pardoseală mopată',
   'Gunoi aruncat în toate camerele',
   'Consumabile completate (ambele băi)',
-  'Fotografie finală făcută',
 ]
 const MOTIVE_AMANARE = [
   'Clientul nu a plecat',
@@ -39,6 +37,11 @@ const MOTIVE_AMANARE = [
 ]
 const NR_LENJERII = [1, 2, 3, 4, 5, 6]
 const KG_PER_SET = 1.3
+
+function getToday() {
+  const d = new Date()
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0')
+}
 
 async function comprimaImagine(file, maxWidth = 1200, calitate = 0.75) {
   return new Promise((resolve) => {
@@ -61,11 +64,6 @@ async function comprimaImagine(file, maxWidth = 1200, calitate = 0.75) {
   })
 }
 
-function getToday() {
-  const d = new Date()
-  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0')
-}
-
 export default function CuratenIePage() {
   const navigate = useNavigate()
   const [tab, setTab] = useState(0)
@@ -76,8 +74,11 @@ export default function CuratenIePage() {
   const [checks, setChecks] = useState({})
   const [lenjerii, setLenjerii] = useState({})
 
+  // Pontaj
+  const [pontajAzi, setPontajAzi] = useState(null) // inregistrarea de azi
+  const [clockLoading, setClockLoading] = useState(false)
+
   // Spalatorie
-  const [spalatorie, setSpalatorie] = useState(null)
   const [spalLoading, setSpalLoading] = useState(false)
   const [inputSeturi, setInputSeturi] = useState('')
   const [inputKg, setInputKg] = useState('')
@@ -102,7 +103,10 @@ export default function CuratenIePage() {
   const [amanTrimis, setAmanTrimis] = useState(false)
   const [amanLoading, setAmanLoading] = useState(false)
 
-  useEffect(() => { load() }, [])
+  const user = getUser()
+  const nume = getNume()
+
+  useEffect(() => { load(); loadPontaj() }, [])
 
   async function load() {
     setLoading(true)
@@ -119,51 +123,54 @@ export default function CuratenIePage() {
         const dA = new Date(a.data_programata), dB = new Date(b.data_programata)
         if (dA - dB !== 0) return dA - dB
         const tipOrd = { intretinere: 0, generala: 1, urgenta: 2 }
-        const tA = tipOrd[a.tip_curatenie] ?? 1, tB = tipOrd[b.tip_curatenie] ?? 1
-        if (tA !== tB) return tA - tB
-        return parseInt(a.nr_apt) - parseInt(b.nr_apt)
+        return (tipOrd[a.tip_curatenie]??1) - (tipOrd[b.tip_curatenie]??1)
       }))
       setFinalizate(toateData.filter(c => c.status_curatenie === 'finalizata'))
     } catch(e) { console.error(e) }
     setLoading(false)
   }
 
-  async function loadSpalatorie() {
-    setSpalLoading(true)
+  async function loadPontaj() {
+    if (!user) return
     try {
       const today = getToday()
-      const { data } = await supabase.from('spalatorie').select('*').eq('data', today).single()
-      if (data) {
-        setSpalatorie(data)
-        setInputSeturi(String(data.total_seturi || ''))
-        setInputKg(String(data.total_kg || ''))
-        setToateGata(data.toate_gata || false)
-      }
-    } catch(e) {}
-    setSpalLoading(false)
+      const { data } = await supabase
+        .from('pontaj')
+        .select('*')
+        .eq('utilizator_id', user.id)
+        .eq('data', today)
+        .single()
+      setPontajAzi(data || null)
+    } catch(e) { setPontajAzi(null) }
   }
 
-  // Calcul total kg din curateniile de azi cu lenjerii selectate
-  const totalSeturiAzi = Object.values(lenjerii).reduce((s, n) => s + (n || 0), 0)
-  const totalKgAzi = Math.round(totalSeturiAzi * KG_PER_SET * 10) / 10
-
-  async function salvezaSpalatorie() {
-    setSpalLoading(true)
-    setSpalSaved(false)
+  async function clockIn() {
+    if (!user) return
+    setClockLoading(true)
     try {
       const today = getToday()
-      const seturi = parseInt(inputSeturi) || totalSeturiAzi
-      const kg = parseFloat(inputKg) || totalKgAzi
-      const { data: existing } = await supabase.from('spalatorie').select('id').eq('data', today).single()
-      if (existing) {
-        await supabase.from('spalatorie').update({ total_seturi: seturi, total_kg: kg, toate_gata: toateGata }).eq('id', existing.id)
-      } else {
-        await supabase.from('spalatorie').insert({ data: today, total_seturi: seturi, total_kg: kg, toate_gata: toateGata })
-      }
-      setSpalSaved(true)
-      setTimeout(() => setSpalSaved(false), 2000)
+      const { data } = await supabase.from('pontaj').insert({
+        utilizator_id: user.id,
+        nume: nume,
+        data: today,
+        ora_intrare: new Date().toISOString()
+      }).select().single()
+      setPontajAzi(data)
     } catch(e) { console.error(e) }
-    setSpalLoading(false)
+    setClockLoading(false)
+  }
+
+  async function clockOut() {
+    if (!pontajAzi) return
+    setClockLoading(true)
+    try {
+      const { data } = await supabase.from('pontaj')
+        .update({ ora_iesire: new Date().toISOString() })
+        .eq('id', pontajAzi.id)
+        .select().single()
+      setPontajAzi(data)
+    } catch(e) { console.error(e) }
+    setClockLoading(false)
   }
 
   function handleLogout() { logout(); navigate('/', { replace: true }) }
@@ -178,10 +185,9 @@ export default function CuratenIePage() {
   async function finalizaCuratenie(c) {
     if (!window.confirm(`Confirmi că ai finalizat curățenia la AP ${c.nr_apt}?`)) return
     const now = new Date().toLocaleString('ro-RO')
-    const numeAngajata = getNume()
-    await supabase.from('curatenie').update({ facut_de: numeAngajata }).eq('id', c.id)
+    await supabase.from('curatenie').update({ facut_de: nume }).eq('id', c.id)
     await marcheazaStatus(c.id, 'finalizata', c.nr_apt)
-    const updated = {...c, status_curatenie: 'finalizata', data_finalizare: now}
+    const updated = {...c, status_curatenie: 'finalizata', data_finalizare: now, facut_de: nume}
     setAzi(p => p.filter(x => x.id !== c.id))
     setToate(p => p.filter(x => x.id !== c.id))
     setFinalizate(p => [updated, ...p])
@@ -191,8 +197,27 @@ export default function CuratenIePage() {
     setChecks(p => ({ ...p, [id]: { ...(p[id]||{}), [idx]: !(p[id]||{})[idx] } }))
   }
 
+  function bifezaToate(id, checklist) {
+    const all = {}
+    checklist.forEach((_, i) => { all[i] = true })
+    setChecks(p => ({ ...p, [id]: all }))
+  }
+
   function selectLenjerii(id, n) {
     setLenjerii(p => ({ ...p, [id]: p[id] === n ? null : n }))
+  }
+
+  async function handleDejaeCurat(c) {
+    if (!window.confirm(`Confirmi că AP ${c.nr_apt} este deja curat?`)) return
+    const now = new Date().toLocaleString('ro-RO')
+    await supabase.from('curatenie').update({
+      status_curatenie: 'finalizata', deja_curat: true,
+      data_finalizare: now, facut_de: nume
+    }).eq('id', c.id)
+    await supabase.from('apartamente').update({ ultima_curatenie: now, curatenie_status: 'finalizata' }).eq('nr', c.nr_apt)
+    setAzi(p => p.filter(x => x.id !== c.id))
+    setToate(p => p.filter(x => x.id !== c.id))
+    setFinalizate(p => [{...c, status_curatenie: 'finalizata', deja_curat: true, data_finalizare: now}, ...p])
   }
 
   function deschideModalMent(c) {
@@ -216,16 +241,14 @@ export default function CuratenIePage() {
     try {
       await adaugaMentenanta({ nr_apt: modalMent.nr_apt, firma: modalMent.firma || '', descriere: descriere.trim() }, fotografie)
       setTrimis(true)
-    } catch(e) { alert('Eroare. Încearcă din nou.'); console.error(e) }
+    } catch(e) { alert('Eroare.'); console.error(e) }
     setTriimitere(false)
   }
 
   function deschideModalAman(c) {
-    const maine = new Date()
-    maine.setDate(maine.getDate() + 1)
+    const maine = new Date(); maine.setDate(maine.getDate() + 1)
     const maineStr = maine.getFullYear() + '-' + String(maine.getMonth()+1).padStart(2,'0') + '-' + String(maine.getDate()).padStart(2,'0')
-    setModalAman(c); setAmanData(maineStr)
-    setAmanMotiv(MOTIVE_AMANARE[0]); setAmanAltMotiv(''); setAmanTrimis(false)
+    setModalAman(c); setAmanData(maineStr); setAmanMotiv(MOTIVE_AMANARE[0]); setAmanAltMotiv(''); setAmanTrimis(false)
   }
 
   async function trimitePropunereAmanare() {
@@ -238,8 +261,35 @@ export default function CuratenIePage() {
       const upd = x => x.id === modalAman.id ? {...x, amanare_status: 'propusa', amanare_propusa: amanData, amanare_motiv: motivFinal} : x
       setAzi(p => p.map(upd)); setToate(p => p.map(upd))
       setAmanTrimis(true)
-    } catch(e) { alert('Eroare. Încearcă din nou.'); console.error(e) }
+    } catch(e) { alert('Eroare.'); console.error(e) }
     setAmanLoading(false)
+  }
+
+  // Spalatorie
+  const totalSeturiAzi = Object.values(lenjerii).reduce((s, n) => s + (n || 0), 0)
+  const totalKgAzi = Math.round(totalSeturiAzi * KG_PER_SET * 10) / 10
+
+  async function salvezaSpalatorie() {
+    setSpalLoading(true); setSpalSaved(false)
+    try {
+      const today = getToday()
+      const seturi = parseInt(inputSeturi) || totalSeturiAzi
+      const kg = parseFloat(inputKg) || totalKgAzi
+      const { data: existing } = await supabase.from('spalatorie').select('id').eq('data', today).single()
+      if (existing) {
+        await supabase.from('spalatorie').update({ total_seturi: seturi, total_kg: kg, toate_gata: toateGata }).eq('id', existing.id)
+      } else {
+        await supabase.from('spalatorie').insert({ data: today, total_seturi: seturi, total_kg: kg, toate_gata: toateGata })
+      }
+      setSpalSaved(true); setTimeout(() => setSpalSaved(false), 2000)
+    } catch(e) { console.error(e) }
+    setSpalLoading(false)
+  }
+
+  // Formatare ora
+  function formatOra(iso) {
+    if (!iso) return '—'
+    return new Date(iso).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })
   }
 
   function renderCard(c) {
@@ -286,7 +336,10 @@ export default function CuratenIePage() {
         )}
 
         {c.status_curatenie === 'finalizata' && (
-          <div style={{ fontSize:12, color:'#888' }}>✅ Finalizată la: {c.data_finalizare || '—'}</div>
+          <div style={{ fontSize:12, color:'#888', display:'flex', alignItems:'center', gap:8 }}>
+            {c.deja_curat && <span style={{ fontSize:10, background:'#EDE7F6', color:'#4527A0', padding:'1px 7px', borderRadius:10, fontWeight:600 }}>✨ Deja curat</span>}
+            ✅ Finalizată la: {c.data_finalizare || '—'}
+          </div>
         )}
 
         {c.status_curatenie === 'in progres' && (
@@ -300,7 +353,7 @@ export default function CuratenIePage() {
               <div style={{ display:'flex', gap:8 }}>
                 {NR_LENJERII.map(n => (
                   <div key={n} onClick={() => selectLenjerii(c.id, n)}
-                    style={{ width:42, height:42, borderRadius:9, border:`2px solid ${nrLen===n?'#375623':'#ddd'}`, background:nrLen===n?'#375623':'#fff', color:nrLen===n?'#fff':'#555', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontWeight:700, fontSize:16, transition:'all .15s' }}>
+                    style={{ width:42, height:42, borderRadius:9, border:`2px solid ${nrLen===n?'#375623':'#ddd'}`, background:nrLen===n?'#375623':'#fff', color:nrLen===n?'#fff':'#555', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontWeight:700, fontSize:16 }}>
                     {n}
                   </div>
                 ))}
@@ -308,7 +361,13 @@ export default function CuratenIePage() {
             </div>
 
             {/* Checklist */}
-            <div style={{ fontSize:11, color:'#888', marginBottom:4 }}>{done}/{checklist.length} puncte bifate</div>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
+              <div style={{ fontSize:11, color:'#888' }}>{done}/{checklist.length} puncte bifate</div>
+              <button onClick={() => bifezaToate(c.id, checklist)}
+                style={{ fontSize:11, padding:'2px 10px', borderRadius:6, border:'1px solid #375623', background:allDone?'#E2EFDA':'#fff', color:'#375623', cursor:'pointer', fontWeight:600 }}>
+                {allDone ? '✓ Toate bifate' : 'Bifează toate'}
+              </button>
+            </div>
             <div style={{ height:6, background:'#e0e0e0', borderRadius:3, marginBottom:10, overflow:'hidden' }}>
               <div style={{ height:'100%', width:`${pct}%`, background:'#375623', borderRadius:3, transition:'width .3s' }}></div>
             </div>
@@ -341,6 +400,8 @@ export default function CuratenIePage() {
                 onClick={() => deschideModalMent(c)}>🔧 Mentenanță</button>
               <button style={{ padding:'9px 12px', borderRadius:9, border:'1.5px solid #90B8E8', background:'#EBF1FB', color:'#1F3864', cursor:'pointer', fontSize:13, fontWeight:600 }}
                 onClick={() => deschideModalAman(c)}>📅 Amână</button>
+              <button style={{ width:'100%', padding:'9px 16px', borderRadius:9, border:'1.5px solid #C5B3F0', background:'#EDE7F6', color:'#4527A0', cursor:'pointer', fontSize:12, fontWeight:600, marginTop:4 }}
+                onClick={() => handleDejaeCurat(c)}>✨ Apartamentul este deja curat</button>
             </>
           )}
         </div>
@@ -348,16 +409,13 @@ export default function CuratenIePage() {
     )
   }
 
-  // ── SPALATORIE TAB ─────────────────────────────────────────
   function renderSpalatorie() {
     const seturiAuto = totalSeturiAzi
     const kgAuto = totalKgAzi
     const seturiFinale = parseInt(inputSeturi) || seturiAuto
     const kgFinale = parseFloat(inputKg) || kgAuto
-
     return (
       <div style={{ maxWidth:500, margin:'0 auto' }}>
-        {/* Card total auto din lenjerii selectate */}
         <div style={{ background:'#EBF1FB', border:'1px solid #90B8E8', borderRadius:12, padding:'14px 16px', marginBottom:14 }}>
           <div style={{ fontSize:12, color:'#1F3864', fontWeight:600, marginBottom:8 }}>📊 Calculat automat din curățeniile de azi</div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
@@ -370,31 +428,24 @@ export default function CuratenIePage() {
               <div style={{ fontSize:11, color:'#888' }}>total de spălat</div>
             </div>
           </div>
-          <div style={{ fontSize:11, color:'#888', marginTop:8, textAlign:'center' }}>1 set = {KG_PER_SET} kg · {seturiAuto} seturi × {KG_PER_SET} = {kgAuto} kg</div>
         </div>
-
-        {/* Input manual */}
         <div style={{ background:'#fff', border:'1px solid #e8e8e8', borderRadius:12, padding:'14px 16px', marginBottom:14 }}>
-          <div style={{ fontSize:12, fontWeight:600, color:'#555', marginBottom:12 }}>✏️ Sau introdu manual (dacă ai lenjerii din alte surse)</div>
+          <div style={{ fontSize:12, fontWeight:600, color:'#555', marginBottom:12 }}>✏️ Sau introdu manual</div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:14 }}>
             <div>
               <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block', fontWeight:600 }}>Nr. seturi</label>
               <input type="number" min="0" value={inputSeturi} onChange={e => { setInputSeturi(e.target.value); if(e.target.value) setInputKg(String(Math.round(parseFloat(e.target.value)*KG_PER_SET*10)/10)) }}
-                placeholder={String(seturiAuto)}
-                style={{ width:'100%', padding:'8px 10px', fontSize:16, fontWeight:700, border:'1.5px solid #ddd', borderRadius:8, outline:'none', textAlign:'center' }} />
+                placeholder={String(seturiAuto)} style={{ width:'100%', padding:'8px 10px', fontSize:16, fontWeight:700, border:'1.5px solid #ddd', borderRadius:8, outline:'none', textAlign:'center' }} />
             </div>
             <div>
               <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block', fontWeight:600 }}>Total kg</label>
               <input type="number" min="0" step="0.1" value={inputKg} onChange={e => { setInputKg(e.target.value); if(e.target.value) setInputSeturi(String(Math.round(parseFloat(e.target.value)/KG_PER_SET))) }}
-                placeholder={String(kgAuto)}
-                style={{ width:'100%', padding:'8px 10px', fontSize:16, fontWeight:700, border:'1.5px solid #ddd', borderRadius:8, outline:'none', textAlign:'center' }} />
+                placeholder={String(kgAuto)} style={{ width:'100%', padding:'8px 10px', fontSize:16, fontWeight:700, border:'1.5px solid #ddd', borderRadius:8, outline:'none', textAlign:'center' }} />
             </div>
           </div>
-
-          {/* Checkbox toate gata */}
-          <div onClick={() => setToateGata(p => !p)}
+          <div onClick={() => setToateGata(p=>!p)}
             style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', borderRadius:10, border:`2px solid ${toateGata?'#375623':'#ddd'}`, background:toateGata?'#E2EFDA':'#f8f9fa', cursor:'pointer', marginBottom:14 }}>
-            <div style={{ width:28, height:28, borderRadius:8, border:`2px solid ${toateGata?'#375623':'#ccc'}`, background:toateGata?'#375623':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:16 }}>
+            <div style={{ width:28, height:28, borderRadius:8, border:`2px solid ${toateGata?'#375623':'#ccc'}`, background:toateGata?'#375623':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:16, color:'#fff' }}>
               {toateGata && '✓'}
             </div>
             <div>
@@ -402,17 +453,10 @@ export default function CuratenIePage() {
               <div style={{ fontSize:11, color:'#888', marginTop:2 }}>{seturiFinale} seturi · {kgFinale} kg</div>
             </div>
           </div>
-
           <button onClick={salvezaSpalatorie} disabled={spalLoading}
-            style={{ width:'100%', padding:'12px', background:spalSaved?'#375623':'#1F3864', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:600, cursor:'pointer', transition:'background .3s' }}>
+            style={{ width:'100%', padding:'12px', background:spalSaved?'#375623':'#1F3864', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:600, cursor:'pointer' }}>
             {spalLoading ? 'Se salvează...' : spalSaved ? '✅ Salvat!' : '💾 Salvează raportul de azi'}
           </button>
-        </div>
-
-        {/* Info */}
-        <div style={{ fontSize:11, color:'#aaa', textAlign:'center', lineHeight:1.6 }}>
-          Raportul se salvează pentru ziua de azi.<br/>
-          Managerul poate vedea statisticile în aplicație.
         </div>
       </div>
     )
@@ -427,20 +471,59 @@ export default function CuratenIePage() {
     { icon:'🧹', text:'Nicio curățenie finalizată încă.' },
   ]
 
+  // Status pontaj
+  const esteIntrată = !!pontajAzi?.ora_intrare
+  const esteIesita = !!pontajAzi?.ora_iesire
+
   return (
     <div>
+      {/* Header */}
       <div style={{ background:'#375623', color:'#fff', padding:'12px 16px', display:'flex', alignItems:'center', gap:10, position:'sticky', top:0, zIndex:50 }}>
         <div style={{ flex:1 }}>
-          <div style={{ fontSize:16, fontWeight:700 }}>🧹 Curățenie EZEL</div>
-          <div style={{ fontSize:11, opacity:.8 }}>{getNume()} · {new Date().toLocaleDateString('ro-RO',{weekday:'long',day:'numeric',month:'long'})}</div>
+          <div style={{ fontSize:16, fontWeight:700 }}>🧹 {nume || 'Curățenie EZEL'}</div>
+          <div style={{ fontSize:11, opacity:.8 }}>{new Date().toLocaleDateString('ro-RO',{weekday:'long',day:'numeric',month:'long'})}</div>
         </div>
         <button style={{ padding:'5px 12px', background:'rgba(255,255,255,.2)', border:'1px solid rgba(255,255,255,.35)', color:'#fff', borderRadius:7, cursor:'pointer', fontSize:12 }}
           onClick={handleLogout}>Ieși</button>
       </div>
 
+      {/* CLOCK IN / OUT */}
+      <div style={{ background: esteIntrată && !esteIesita ? '#E2EFDA' : '#f8f9fa', borderBottom:'1px solid #e0e0e0', padding:'10px 16px' }}>
+        {!esteIntrată ? (
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, color:'#555' }}>Nu ești pontată azi</div>
+              <div style={{ fontSize:11, color:'#aaa' }}>Apasă butonul pentru a începe ziua</div>
+            </div>
+            <button onClick={clockIn} disabled={clockLoading}
+              style={{ padding:'10px 20px', background:'#375623', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:6 }}>
+              {clockLoading ? '...' : '▶ Clock In'}
+            </button>
+          </div>
+        ) : !esteIesita ? (
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, color:'#375623' }}>✅ Pontată de la {formatOra(pontajAzi.ora_intrare)}</div>
+              <div style={{ fontSize:11, color:'#888' }}>Apasă când termini ziua</div>
+            </div>
+            <button onClick={clockOut} disabled={clockLoading}
+              style={{ padding:'10px 20px', background:'#c0392b', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer' }}>
+              {clockLoading ? '...' : '⏹ Clock Out'}
+            </button>
+          </div>
+        ) : (
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <div style={{ fontSize:13, color:'#888' }}>
+              Ziua finalizată: {formatOra(pontajAzi.ora_intrare)} — {formatOra(pontajAzi.ora_iesire)}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Tabs */}
       <div style={{ display:'flex', background:'#fff', borderBottom:'2px solid #e0e0e0', padding:'0 14px', overflowX:'auto' }}>
         {TABS_CUR.map((t,i) => (
-          <div key={i} onClick={() => { setTab(i); if(i===2) loadSpalatorie() }}
+          <div key={i} onClick={() => setTab(i)}
             style={{ padding:'11px 14px', fontSize:13, cursor:'pointer', color:tab===i?'#375623':'#888', borderBottom:`2.5px solid ${tab===i?'#375623':'transparent'}`, fontWeight:500, whiteSpace:'nowrap' }}>
             {t}{i===0&&azi.length>0?` (${azi.length})`:''}
           </div>
@@ -450,12 +533,12 @@ export default function CuratenIePage() {
       <div style={{ padding:14, maxWidth:600, margin:'0 auto' }}>
         {tab === 2 ? renderSpalatorie() :
           loading ? <div style={{ textAlign:'center', padding:40, color:'#aaa' }}>Se încarcă...</div>
-          : lists[tab].length === 0 ? (
+          : lists[tab]?.length === 0 ? (
             <div style={{ textAlign:'center', padding:'50px 20px', color:'#bbb' }}>
               <div style={{ fontSize:48, marginBottom:12 }}>{emptyMsgs[tab].icon}</div>
               <div style={{ fontSize:13 }}>{emptyMsgs[tab].text}</div>
             </div>
-          ) : lists[tab].map(renderCard)
+          ) : lists[tab]?.map(renderCard)
         }
       </div>
 
@@ -528,7 +611,6 @@ export default function CuratenIePage() {
               <div style={{ textAlign:'center', padding:'20px 0' }}>
                 <div style={{ fontSize:52, marginBottom:12 }}>✅</div>
                 <div style={{ fontSize:16, fontWeight:700, color:'#375623', marginBottom:8 }}>Problemă raportată!</div>
-                <div style={{ fontSize:13, color:'#888', marginBottom:20 }}>Mentenanța pentru AP {modalMent.nr_apt} a fost trimisă.</div>
                 <button style={{ padding:'10px 24px', background:'#375623', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:600, cursor:'pointer' }}
                   onClick={() => setModalMent(null)}>Închide</button>
               </div>
@@ -540,12 +622,6 @@ export default function CuratenIePage() {
                     <div style={{ fontSize:12, color:'#888', marginTop:2 }}>AP {modalMent.nr_apt} — {modalMent.firma||'—'}</div>
                   </div>
                   <button onClick={() => setModalMent(null)} style={{ width:30, height:30, borderRadius:'50%', border:'1px solid #eee', background:'#f5f5f5', cursor:'pointer', fontSize:16 }}>✕</button>
-                </div>
-                <div style={{ marginBottom:12 }}>
-                  <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block', fontWeight:600 }}>Apartament</label>
-                  <div style={{ padding:'8px 10px', background:'#f8f9fa', borderRadius:8, border:'1px solid #eee', fontSize:13, fontWeight:600, color:'#1F3864' }}>
-                    AP {modalMent.nr_apt} — {modalMent.firma||'—'}
-                  </div>
                 </div>
                 <div style={{ marginBottom:12 }}>
                   <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block', fontWeight:600 }}>Descrie problema *</label>
@@ -560,7 +636,6 @@ export default function CuratenIePage() {
                       <img src={previzualizare} alt="prev" style={{ width:'100%', borderRadius:8, maxHeight:200, objectFit:'cover' }} />
                       <button onClick={() => { setFotografie(null); setPrevizualizare(null); setMarimeFisier(null); fileRef.current.value='' }}
                         style={{ position:'absolute', top:6, right:6, width:28, height:28, borderRadius:'50%', background:'rgba(0,0,0,.6)', color:'#fff', border:'none', cursor:'pointer', fontSize:14 }}>✕</button>
-                      {marimeFisier && <div style={{ marginTop:4, fontSize:10, color:'#888', textAlign:'center' }}>Original: {marimeFisier.original}MB → {marimeFisier.comprimat}MB</div>}
                     </div>
                   ) : (
                     <button onClick={() => fileRef.current.click()}
