@@ -73,3 +73,7 @@ export async function loginCuParola(parola) {
     return null
   }
 }
+
+export function getSession() {
+  return getUser()
+}
