@@ -1,9 +1,12 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 
 const LUNI = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie']
 const ZS = ['Du','Lu','Ma','Mi','Jo','Vi','Sa']
 
-export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMonth, onCellClick, onAddMulti, onAddUnic, onAutoSchedule }) {
+export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMonth, onCellClick, onAddMulti, onAddUnic, onAutoSchedule, onStergeCuratenii }) {
+  const [modStergere, setModStergere] = useState(false)
+  const [selectate, setSelectate] = useState([]) // [{id, nr_apt, zi}]
+
   const zile = new Date(calAn, calLuna + 1, 0).getDate()
   const today = new Date()
   const todayZi = today.getFullYear()===calAn && today.getMonth()===calLuna ? today.getDate() : -1
@@ -14,7 +17,6 @@ export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMont
     return s
   }, [calAn, calLuna, zile])
 
-  // Build calMap: nr_apt -> {zi -> curatenie}
   const calMap = useMemo(() => {
     const m = {}
     curatenii.forEach(c => {
@@ -24,7 +26,7 @@ export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMont
       const zi = d.getDate()
       const key = c.nr_apt
       if (!m[key]) m[key] = {}
-      if (!m[key][zi]) m[key][zi] = c // prima curățenie din zi
+      if (!m[key][zi]) m[key][zi] = c
     })
     return m
   }, [curatenii, calAn, calLuna])
@@ -47,8 +49,35 @@ export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMont
     return 'X'
   }
 
+  function isSelectata(nr_apt, zi) {
+    return selectate.some(s => s.nr_apt === nr_apt && s.zi === zi)
+  }
+
+  function toggleSelectare(c, nr_apt, zi) {
+    if (!c || c.status_curatenie === 'finalizata') return // nu poti selecta finalizate
+    if (isSelectata(nr_apt, zi)) {
+      setSelectate(prev => prev.filter(s => !(s.nr_apt === nr_apt && s.zi === zi)))
+    } else {
+      setSelectate(prev => [...prev, { id: c.id, nr_apt, zi }])
+    }
+  }
+
+  function anuleazaMod() {
+    setModStergere(false)
+    setSelectate([])
+  }
+
+  async function stergeSelectate() {
+    if (selectate.length === 0) return
+    if (!window.confirm(`Ștergi ${selectate.length} curățenii selectate?`)) return
+    await onStergeCuratenii(selectate.map(s => s.id))
+    setSelectate([])
+    setModStergere(false)
+  }
+
   return (
     <div>
+      {/* Bara butoane */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
           <button className="btn" onClick={() => onChangeMonth(-1)}>◀</button>
@@ -57,22 +86,50 @@ export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMont
           </div>
           <button className="btn" onClick={() => onChangeMonth(1)}>▶</button>
         </div>
-        <button className="btn btn-g" onClick={onAddMulti}>+ Curățenie multiplă</button>
-        <button className="btn btn-p" onClick={onAddUnic}>+ Unic</button>
-        {onAutoSchedule && <button className="btn" style={{ background:'#E2EFDA', color:'#375623', border:'1px solid #C0DD97' }} onClick={onAutoSchedule}>🤖 Auto-planificare</button>}
+
+        {!modStergere ? (
+          <>
+            <button className="btn btn-g" onClick={onAddMulti}>+ Curățenie multiplă</button>
+            <button className="btn btn-p" onClick={onAddUnic}>+ Unic</button>
+            {onAutoSchedule && <button className="btn" style={{ background:'#E2EFDA', color:'#375623', border:'1px solid #C0DD97' }} onClick={onAutoSchedule}>🤖 Auto-planificare</button>}
+            <button className="btn" style={{ background:'#FDECEA', color:'#c0392b', border:'1px solid #F5A0A0' }}
+              onClick={() => { setModStergere(true); setSelectate([]) }}>
+              🗑 Selectează pentru ștergere
+            </button>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#c0392b', background:'#FDECEA', padding:'5px 10px', borderRadius:8, border:'1px solid #F5A0A0' }}>
+              🗑 Mod ștergere activ — click pe curățenii pentru a le selecta
+            </div>
+            {selectate.length > 0 && (
+              <button className="btn" style={{ background:'#c0392b', color:'#fff', border:'none', fontWeight:600 }}
+                onClick={stergeSelectate}>
+                🗑 Șterge {selectate.length} {selectate.length===1?'curățenie':'curățenii'}
+              </button>
+            )}
+            <button className="btn" onClick={anuleazaMod}>✕ Anulează</button>
+          </>
+        )}
       </div>
 
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+      {/* Legenda */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 8, alignItems: 'center' }}>
         {[['#FFD700','G Generală'],['#90EE90','I Întreținere'],['#87CEEB','X Urgență'],['#C6EFCE','✓ Finalizată']].map(([bg,lbl]) => (
           <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#555' }}>
             <div style={{ width: 12, height: 12, borderRadius: 3, background: bg, border: '0.5px solid #ccc' }}></div>
             {lbl}
           </div>
         ))}
-        <div style={{ fontSize: 10, color: '#aaa' }}>Click celulă = adaugă/șterge</div>
+        {!modStergere && <div style={{ fontSize: 10, color: '#aaa' }}>Click celulă = adaugă/șterge</div>}
+        {modStergere && (
+          <div style={{ fontSize: 11, background:'#FDECEA', padding:'2px 8px', borderRadius:6, color:'#c0392b', border:'1px solid #F5A0A0' }}>
+            {selectate.length > 0 ? `${selectate.length} selectate` : 'Nicio selecție'}
+          </div>
+        )}
       </div>
 
-      <div style={{ overflowX: 'auto', borderRadius: 10, border: '1px solid #e0e0e0', background: '#fff' }}>
+      <div style={{ overflowX: 'auto', borderRadius: 10, border: `2px solid ${modStergere?'#F5A0A0':'#e0e0e0'}`, background: '#fff', transition:'border-color .2s' }}>
         <table className="cal">
           <thead>
             <tr>
@@ -102,11 +159,26 @@ export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMont
                     const isWe = weekends.has(z)
                     const isToday = z === todayZi
                     const dataStr = `${calAn}-${String(calLuna+1).padStart(2,'0')}-${String(z).padStart(2,'0')}`
+                    const esteSelectata = modStergere && isSelectata(apt.nr, z)
+                    const poateSelecta = modStergere && c && c.status_curatenie !== 'finalizata'
+
                     return (
                       <td key={z}
                         className={`${isWe?'we':''} ${cellClass(c)} ${isToday?'ct':''}`}
-                        onClick={() => onCellClick(apt.nr, z, dataStr)}>
-                        {cellContent(c)}
+                        style={{
+                          outline: esteSelectata ? '2px solid #c0392b' : 'none',
+                          background: esteSelectata ? '#FDECEA' : undefined,
+                          cursor: modStergere ? (poateSelecta ? 'pointer' : 'default') : 'pointer',
+                          position: 'relative'
+                        }}
+                        onClick={() => {
+                          if (modStergere) {
+                            toggleSelectare(c, apt.nr, z)
+                          } else {
+                            onCellClick(apt.nr, z, dataStr)
+                          }
+                        }}>
+                        {esteSelectata ? '✕' : cellContent(c)}
                       </td>
                     )
                   })}
