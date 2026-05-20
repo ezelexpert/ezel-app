@@ -18,6 +18,33 @@ import PontajTab from './PontajTab'
 import { checkSiRuleazaVineri, genereazaSaptamana } from '../lib/autoScheduler'
 import { getNume } from '../lib/auth'
 
+// ── Fuzzy matching firme ─────────────────────────────────────
+function similaritate(a, b) {
+  if (!a || !b) return 0
+  const s1 = a.toLowerCase().replace(/\s/g, '')
+  const s2 = b.toLowerCase().replace(/\s/g, '')
+  if (s1 === s2) return 1
+  if (s1.includes(s2) || s2.includes(s1)) return 0.8
+  // Calcul litere comune
+  const set1 = new Set(s1.split(''))
+  const set2 = new Set(s2.split(''))
+  const comune = [...set1].filter(c => set2.has(c)).length
+  return comune / Math.max(set1.size, set2.size)
+}
+
+function gasesteFirmaSimilara(numeNou, firmeExistente, prag = 0.5) {
+  if (!numeNou || !firmeExistente?.length) return null
+  let bestMatch = null, bestScore = 0
+  for (const firma of firmeExistente) {
+    const score = similaritate(numeNou, firma)
+    if (score > bestScore && score >= prag && firma.toLowerCase() !== numeNou.toLowerCase()) {
+      bestScore = score
+      bestMatch = firma
+    }
+  }
+  return bestMatch ? { firma: bestMatch, score: bestScore } : null
+}
+
 // Navigare cu dropdown grupuri
 const NAV_GROUPS = [
   { key: 'acasa', label: '🏠 Acasă', single: true, tab: 0 },
@@ -128,11 +155,11 @@ export default function AdminPage() {
       setModal(null)
       await updateApartament(nr, fields)
       return
-    }if (fields.status !== 'special' && (!fields.pret || Number(fields.pret) <= 0)) { alert('Pretul este obligatoriu!'); return }
+    }
+    if (!fields.pret || Number(fields.pret) <= 0) { alert('Pretul este obligatoriu!'); return }
     if (!fields.tip_serviciu) fields.tip_serviciu = 'cazare'
     if (fields.tip_serviciu !== 'chirie') { fields.pret_utilitati = 0; fields.utilitati_tip = 'fix' }
-    // Firma completata = Ocupat automat
-    if (fields.firma && fields.firma.trim()) { fields.status = 'activ' }
+    // Firma completata NU seteaza automat statusul
     // Data eliberare = status Elibereaza automat
     if (fields.data_elib && fields.data_elib.trim()) {
       fields.status = 'elib'
@@ -144,6 +171,46 @@ export default function AdminPage() {
       fields.data_elib = checkin.getFullYear() + '-' + String(checkin.getMonth()+1).padStart(2,'0') + '-' + String(checkin.getDate()).padStart(2,'0')
       fields.status = 'elib'
     }
+    // Salveaza firma veche in istoric daca se schimba clientul
+    const aptCurent = apts.find(a => a.nr === nr)
+    if (aptCurent?.firma && fields.firma && aptCurent.firma !== fields.firma) {
+      const azi = new Date().toISOString().split('T')[0]
+      await supabase.from('istoric_firme').insert({
+        firma: aptCurent.firma,
+        nr_apt: nr,
+        tip_apt: aptCurent.tip || 'simplu',
+        data_start: aptCurent.data_checkin || azi,
+        data_end: azi,
+        pret_noapte: aptCurent.pret || 0,
+        nr_zile: 0,
+        total_estimat: 0,
+        observatii: 'Auto-salvat la schimbare client',
+        pret_mediu: aptCurent.pret || 0,
+        ultima_data: azi,
+        nr_apartamente: 1
+      })
+    }
+
+    // Fuzzy match - cauta firma similara
+    if (fields.firma && fields.firma.trim()) {
+      const firmeExistente = [...new Set(apts.filter(a => a.firma && a.nr !== nr).map(a => a.firma))]
+      const similar = gasesteFirmaSimilara(fields.firma.trim(), firmeExistente)
+      if (similar) {
+        const confirmat = window.confirm(
+          `Am găsit firma similară "${similar.firma}" (${Math.round(similar.score*100)}% potrivire).
+
+Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fields.firma.trim()}"?`
+        )
+        if (confirmat) {
+          const aDeActualizat = apts.filter(a => a.firma === similar.firma && a.nr !== nr).map(a => a.nr)
+          if (aDeActualizat.length > 0) {
+            await updateApartamenteMultiple(aDeActualizat, { firma: fields.firma.trim() })
+            setApts(prev => prev.map(a => a.firma === similar.firma && a.nr !== nr ? { ...a, firma: fields.firma.trim() } : a))
+          }
+        }
+      }
+    }
+
     setApts(prev => prev.map(a => a.nr === nr ? { ...a, ...fields } : a))
     setModal(null)
     await updateApartament(nr, fields)
@@ -421,7 +488,6 @@ export default function AdminPage() {
               <tbody>
                 {filteredApts.map(a => {
                   const [bc, bl] = ST_MAP[a.status] || ['bk','—']
-const statusLabel = a.status === 'elib' && a.data_elib ? `Elib. ${a.data_elib}` : bl
                   const isDbl = a.tip === 'dublu' || String(a.nr).startsWith('D')
                   return (
                     <tr key={a.nr} className={selApts.has(a.nr) ? 'sel' : ''}>
@@ -434,7 +500,7 @@ const statusLabel = a.status === 'elib' && a.data_elib ? `Elib. ${a.data_elib}` 
                       </td>
                       <td>{a.firma || '—'}</td>
                       <td style={{ color: '#888', fontSize: 11 }}>{a.nota || '—'}</td>
-                      <td><span className={`badge ${bc}`}>{statusLabel}</span></td>
+                      <td><span className={`badge ${bc}`}>{bl}</span></td>
                       <td>{a.pret ? `${a.pret} RON` : '—'}</td>
                       <td style={{ fontSize: 11, color: '#888' }}>{a.ultima_curatenie || '—'}</td>
                       <td><button className="btn" style={{ height: 24, fontSize: 11 }} onClick={() => { setEditData({ ...a }); setModal('editApt') }}>✏️</button></td>
@@ -456,6 +522,16 @@ const statusLabel = a.status === 'elib' && a.data_elib ? `Elib. ${a.data_elib}` 
               .map(([name, v]) => {
                 const rev = v.apts.filter(a => a.status==='activ').reduce((s,a) => s+Number(a.pret)*30, 0)
                 const elibApts = v.apts.filter(a => a.status==='elib')
+                // Statistici din istoric pentru aceasta firma
+                const istoricFirma = istoric.filter(r => r.firma === name)
+                const pretMediu = istoricFirma.length > 0
+                  ? Math.round(istoricFirma.reduce((s,r) => s + Number(r.pret_noapte||0), 0) / istoricFirma.length)
+                  : v.pret
+                const ultimaData = istoricFirma.length > 0
+                  ? istoricFirma.sort((a,b) => new Date(b.data_end) - new Date(a.data_end))[0]?.data_end
+                  : null
+                const nrAptIstoric = new Set(istoricFirma.map(r => r.nr_apt)).size
+
                 return (
                   <div key={name} className="card">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -465,6 +541,21 @@ const statusLabel = a.status === 'elib' && a.data_elib ? `Elib. ${a.data_elib}` 
                         <div style={{ fontSize: 11, color: '#888' }}>{v.plata} · {v.pret} RON/apt/noapte</div>
                       </div>
                       <span className="badge bp2">{rev.toLocaleString()} RON/lună</span>
+                    </div>
+                    {/* Statistici firma */}
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6, marginBottom:8 }}>
+                      <div style={{ background:'#f8f9fa', borderRadius:7, padding:'6px 8px', textAlign:'center' }}>
+                        <div style={{ fontSize:13, fontWeight:700, color:'#1F3864' }}>{v.apts.length}</div>
+                        <div style={{ fontSize:10, color:'#888' }}>apt. active</div>
+                      </div>
+                      <div style={{ background:'#f8f9fa', borderRadius:7, padding:'6px 8px', textAlign:'center' }}>
+                        <div style={{ fontSize:13, fontWeight:700, color:'#375623' }}>{pretMediu} RON</div>
+                        <div style={{ fontSize:10, color:'#888' }}>preț mediu</div>
+                      </div>
+                      <div style={{ background:'#f8f9fa', borderRadius:7, padding:'6px 8px', textAlign:'center' }}>
+                        <div style={{ fontSize:13, fontWeight:700, color:'#4527A0' }}>{ultimaData || '—'}</div>
+                        <div style={{ fontSize:10, color:'#888' }}>ultima cazare</div>
+                      </div>
                     </div>
                     {elibApts.length > 0 && <div className="aw" style={{ fontSize: 11 }}>⚠️ Eliberează: {elibApts.map(a => `AP${a.nr}${a.data_elib ? ' pe ' + a.data_elib : ''}`).join(', ')}</div>}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
