@@ -18,6 +18,35 @@ import PontajTab from './PontajTab'
 import { checkSiRuleazaVineri, genereazaSaptamana } from '../lib/autoScheduler'
 import { getNume } from '../lib/auth'
 
+// Navigare cu dropdown grupuri
+const NAV_GROUPS = [
+  { key: 'acasa', label: '🏠 Acasă', single: true, tab: 0 },
+  {
+    key: 'operational', label: '⚙️ Operațional',
+    items: [
+      { label: '📊 Statistici', tab: 5 },
+      { label: '🧺 Spălătorie', tab: 8 },
+      { label: '🔧 Mentenanță', tab: 6 },
+      { label: '📅 Amânări', tab: 7 },
+    ]
+  },
+  {
+    key: 'date', label: '💼 Date',
+    items: [
+      { label: '🚪 Apartamente', tab: 1 },
+      { label: '🏢 Firme', tab: 2 },
+      { label: '📋 Istoric', tab: 3 },
+    ]
+  },
+  {
+    key: 'financiar', label: '💰 Financiar',
+    items: [
+      { label: '💰 Încasări', tab: 4 },
+      { label: '💵 Salarii', tab: 9 },
+      { label: '⏱ Pontaj', tab: 10 },
+    ]
+  },
+]
 const TABS = ['📅 Calendar', '🚪 Apartamente', '🏢 Firme', '📋 Istoric', '💰 Incasari', '📊 Statistici', '🔧 Mentenanta', '📅 Amanari', '🧺 Spalatorie', '💵 Salarii', '⏱ Pontaj']
 const TAB_KEYS = ['calendar', 'apartamente', 'firme', 'istoric', 'incasari', 'statistici', 'mentenanta', 'amanari', 'spalatorie', 'salarii', 'pontaj']
 const LUNI = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie']
@@ -41,6 +70,7 @@ export default function AdminPage() {
   const [modal, setModal] = useState(null)
   const [editData, setEditData] = useState({})
   const [schedulerMsg, setSchedulerMsg] = useState(null)
+  const [openDropdown, setOpenDropdown] = useState(null)
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -254,14 +284,60 @@ export default function AdminPage() {
         <button className="btn" style={{ background: 'rgba(255,255,255,.18)', border: '1px solid rgba(255,255,255,.3)', color: '#fff', fontSize: 12 }} onClick={handleLogout}>Ieși</button>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', background: '#fff', borderBottom: '1.5px solid #e0e0e0', padding: '0 12px', overflowX: 'auto' }}>
-        {TABS.map((t, i) => (
-          <div key={i} onClick={() => setTab(i)}
-            style={{ padding: '10px 13px', fontSize: 13, cursor: 'pointer', color: tab === i ? '#1F3864' : '#888', borderBottom: `2.5px solid ${tab === i ? '#1F3864' : 'transparent'}`, whiteSpace: 'nowrap', fontWeight: 500 }}>
-            {t}
-          </div>
-        ))}
+      {/* Navigare cu dropdown */}
+      <div style={{ background: '#fff', borderBottom: '1.5px solid #e0e0e0', padding: '0 12px', display: 'flex', gap: 2, position: 'relative', zIndex: 40 }}
+        onMouseLeave={() => setOpenDropdown(null)}>
+        {NAV_GROUPS.map(group => {
+          const isActive = group.single
+            ? tab === group.tab
+            : group.items?.some(i => i.tab === tab)
+          return (
+            <div key={group.key} style={{ position: 'relative' }}
+              onMouseEnter={() => !group.single && setOpenDropdown(group.key)}>
+              <div
+                onClick={() => {
+                  if (group.single) { setTab(group.tab); setOpenDropdown(null) }
+                  else setOpenDropdown(openDropdown === group.key ? null : group.key)
+                }}
+                style={{
+                  padding: '11px 14px', fontSize: 13, cursor: 'pointer', fontWeight: 600,
+                  color: isActive ? '#1F3864' : '#555',
+                  borderBottom: `2.5px solid ${isActive ? '#1F3864' : 'transparent'}`,
+                  display: 'flex', alignItems: 'center', gap: 4, userSelect: 'none',
+                  whiteSpace: 'nowrap'
+                }}>
+                {group.label}
+                {!group.single && <span style={{ fontSize: 9, opacity: .6 }}>{openDropdown === group.key ? '▲' : '▼'}</span>}
+              </div>
+              {/* Dropdown */}
+              {!group.single && openDropdown === group.key && (
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, minWidth: 180,
+                  background: '#fff', borderRadius: '0 8px 8px 8px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,.12)', border: '1px solid #e8e8e8',
+                  zIndex: 100, overflow: 'hidden'
+                }}>
+                  {group.items.map(item => (
+                    <div key={item.tab}
+                      onClick={() => { setTab(item.tab); setOpenDropdown(null) }}
+                      style={{
+                        padding: '10px 16px', fontSize: 13, cursor: 'pointer',
+                        background: tab === item.tab ? '#EBF1FB' : '#fff',
+                        color: tab === item.tab ? '#1F3864' : '#333',
+                        fontWeight: tab === item.tab ? 600 : 400,
+                        borderLeft: tab === item.tab ? '3px solid #1F3864' : '3px solid transparent',
+                        transition: 'background .15s'
+                      }}
+                      onMouseEnter={e => { if(tab !== item.tab) e.currentTarget.style.background = '#f5f7fa' }}
+                      onMouseLeave={e => { if(tab !== item.tab) e.currentTarget.style.background = '#fff' }}>
+                      {item.label}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       <div style={{ padding: 12, maxWidth: 1200, margin: '0 auto' }}>
