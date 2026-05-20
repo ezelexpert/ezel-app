@@ -129,10 +129,11 @@ export default function AdminPage() {
       await updateApartament(nr, fields)
       return
     }
-    if (!fields.pret || Number(fields.pret) <= 0) { alert('Pretul este obligatoriu!'); return }
+   if (!fields.pret || Number(fields.pret) <= 0) { alert('Pretul este obligatoriu!'); return }
     if (!fields.tip_serviciu) fields.tip_serviciu = 'cazare'
     if (fields.tip_serviciu !== 'chirie') { fields.pret_utilitati = 0; fields.utilitati_tip = 'fix' }
-    // Firma completata NU seteaza automat statusul
+    // Firma completata = Ocupat automat
+    if (fields.firma && fields.firma.trim()) { fields.status = 'activ' }
     // Data eliberare = status Elibereaza automat
     if (fields.data_elib && fields.data_elib.trim()) {
       fields.status = 'elib'
