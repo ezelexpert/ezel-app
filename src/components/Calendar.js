@@ -3,9 +3,11 @@ import React, { useMemo, useState } from 'react'
 const LUNI = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie']
 const ZS = ['Du','Lu','Ma','Mi','Jo','Vi','Sa']
 
-export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMonth, onCellClick, onAddMulti, onAddUnic, onAutoSchedule, onStergeCuratenii }) {
+export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMonth, onCellClick, onAddMulti, onAddUnic, onAutoSchedule, onStergeCuratenii, onMutaCuratenie }) {
   const [modStergere, setModStergere] = useState(false)
   const [selectate, setSelectate] = useState([]) // [{id, nr_apt, zi}]
+  const [dragItem, setDragItem] = useState(null) // curatenia trasa
+  const [dragOver, setDragOver] = useState(null) // {nr_apt, zi, dataStr}
 
   const zile = new Date(calAn, calLuna + 1, 0).getDate()
   const today = new Date()
@@ -162,21 +164,31 @@ export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMont
                     const esteSelectata = modStergere && isSelectata(apt.nr, z)
                     const poateSelecta = modStergere && c && c.status_curatenie !== 'finalizata'
 
+                    const isDragOver = dragOver?.nr_apt === apt.nr && dragOver?.zi === z
                     return (
                       <td key={z}
                         className={`${isWe?'we':''} ${cellClass(c)} ${isToday?'ct':''}`}
                         style={{
-                          outline: esteSelectata ? '2px solid #c0392b' : 'none',
-                          background: esteSelectata ? '#FDECEA' : undefined,
-                          cursor: modStergere ? (poateSelecta ? 'pointer' : 'default') : 'pointer',
+                          outline: esteSelectata ? '2px solid #c0392b' : isDragOver ? '2px solid #1F3864' : 'none',
+                          background: esteSelectata ? '#FDECEA' : isDragOver ? '#EBF1FB' : undefined,
+                          cursor: modStergere ? (poateSelecta ? 'pointer' : 'default') : c ? 'grab' : 'pointer',
                           position: 'relative'
                         }}
-                        onClick={() => {
-                          if (modStergere) {
-                            toggleSelectare(c, apt.nr, z)
-                          } else {
-                            onCellClick(apt.nr, z, dataStr)
+                        draggable={!modStergere && !!c && c.status_curatenie !== 'finalizata'}
+                        onDragStart={() => { if(c) setDragItem(c) }}
+                        onDragEnd={() => { setDragItem(null); setDragOver(null) }}
+                        onDragOver={e => { e.preventDefault(); setDragOver({ nr_apt: apt.nr, zi: z, dataStr }) }}
+                        onDragLeave={() => setDragOver(null)}
+                        onDrop={async e => {
+                          e.preventDefault()
+                          if (dragItem && dataStr !== dragItem.data_programata && onMutaCuratenie) {
+                            await onMutaCuratenie(dragItem.id, dataStr)
                           }
+                          setDragItem(null); setDragOver(null)
+                        }}
+                        onClick={() => {
+                          if (modStergere) { toggleSelectare(c, apt.nr, z) }
+                          else if (!dragItem) { onCellClick(apt.nr, z, dataStr) }
                         }}>
                         {esteSelectata ? '✕' : cellContent(c)}
                       </td>
