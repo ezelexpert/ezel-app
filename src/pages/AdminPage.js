@@ -422,6 +422,7 @@ export default function AdminPage() {
               <tbody>
                 {filteredApts.map(a => {
                   const [bc, bl] = ST_MAP[a.status] || ['bk','—']
+const statusLabel = a.status === 'elib' && a.data_elib ? `Elib. ${a.data_elib}` : bl
                   const isDbl = a.tip === 'dublu' || String(a.nr).startsWith('D')
                   return (
                     <tr key={a.nr} className={selApts.has(a.nr) ? 'sel' : ''}>
@@ -434,7 +435,7 @@ export default function AdminPage() {
                       </td>
                       <td>{a.firma || '—'}</td>
                       <td style={{ color: '#888', fontSize: 11 }}>{a.nota || '—'}</td>
-                      <td><span className={`badge ${bc}`}>{bl}</span></td>
+                      <td><span className={`badge ${bc}`}>{statusLabel}</span></td>
                       <td>{a.pret ? `${a.pret} RON` : '—'}</td>
                       <td style={{ fontSize: 11, color: '#888' }}>{a.ultima_curatenie || '—'}</td>
                       <td><button className="btn" style={{ height: 24, fontSize: 11 }} onClick={() => { setEditData({ ...a }); setModal('editApt') }}>✏️</button></td>
