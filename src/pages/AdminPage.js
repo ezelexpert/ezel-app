@@ -132,10 +132,7 @@ export default function AdminPage() {
     if (!fields.pret || Number(fields.pret) <= 0) { alert('Pretul este obligatoriu!'); return }
     if (!fields.tip_serviciu) fields.tip_serviciu = 'cazare'
     if (fields.tip_serviciu !== 'chirie') { fields.pret_utilitati = 0; fields.utilitati_tip = 'fix' }
-    // Firma completata = Ocupat automat
-    if (fields.firma && fields.firma.trim() && (fields.status === 'liber' || !fields.status)) {
-      fields.status = 'activ'
-    }
+    // Firma completata NU seteaza automat statusul
     // Data eliberare = status Elibereaza automat
     if (fields.data_elib && fields.data_elib.trim()) {
       fields.status = 'elib'
@@ -371,6 +368,10 @@ export default function AdminPage() {
               for (const id of ids) await stergeCuratenie(id)
               const c = await getCuratenie(); setCuratenii(c)
             }}
+            onMutaCuratenie={async (id, dataNoua) => {
+              await supabase.from('curatenie').update({ data_programata: dataNoua }).eq('id', id)
+              const c = await getCuratenie(); setCuratenii(c)
+            }}
             onAddUnic={() => { setEditData({ nr_apt: apts[0]?.nr, data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('curUnic') }}
           />
         )}
@@ -565,35 +566,54 @@ export default function AdminPage() {
               <input className="fi" value={editData.data_elib||''} placeholder="ex: 20.05" onChange={e => setEditData({...editData, data_elib: e.target.value})} />
             </div>
           </div>
-          <div className="r2">
-            <div className="fg"><label className="fl">Preț/noapte (cazare) sau /lună (chirie)</label>
-              <input className="fi" type="number" value={editData.pret||''} onChange={e => setEditData({...editData, pret: e.target.value})} />
-            </div>
-            <div className="fg"><label className="fl">Plată</label>
-              <select className="fi" value={editData.plata||'OP'} onChange={e => setEditData({...editData, plata: e.target.value})}>
-                <option value="OP">OP</option><option value="Cash">Cash</option>
-              </select>
-            </div>
-          </div>
           <div className="fg"><label className="fl">Tip serviciu</label>
             <select className="fi" value={editData.tip_serviciu||'cazare'} onChange={e => setEditData({...editData, tip_serviciu: e.target.value})}>
               <option value="cazare">Cazare (preț/noapte)</option>
               <option value="chirie">Chirie (preț/lună)</option>
             </select>
           </div>
-          {editData.tip_serviciu === 'chirie' && (
+          {(editData.tip_serviciu||'cazare') === 'cazare' ? (
             <div className="r2">
+              <div className="fg"><label className="fl">Preț/noapte (RON)</label>
+                <input className="fi" type="number" value={editData.pret||''} onChange={e => setEditData({...editData, pret: e.target.value})} />
+              </div>
+              <div className="fg"><label className="fl">Nr. nopți</label>
+                <input className="fi" type="number" placeholder="ex: 7" value={editData.nr_nopti_manual||''} onChange={e => {
+                  const n = parseInt(e.target.value)||0
+                  setEditData({...editData, nr_nopti_manual: e.target.value, total_estimat_manual: n * (Number(editData.pret)||0)})
+                }} />
+              </div>
+            </div>
+          ) : (
+            <div className="fg"><label className="fl">Preț/lună (RON)</label>
+              <input className="fi" type="number" value={editData.pret||''} onChange={e => setEditData({...editData, pret: e.target.value})} />
+            </div>
+          )}
+          {(editData.tip_serviciu||'cazare') === 'cazare' && editData.nr_nopti_manual && editData.pret && (
+            <div style={{ background:'#E2EFDA', borderRadius:7, padding:'6px 10px', fontSize:12, color:'#375623', fontWeight:600 }}>
+              Total estimat: {(parseInt(editData.nr_nopti_manual)||0) * (Number(editData.pret)||0)} RON ({editData.nr_nopti_manual} nopți × {editData.pret} RON)
+            </div>
+          )}
+          {(editData.tip_serviciu||'cazare') === 'chirie' && (
+            <div className="r2">
+              <div className="fg"><label className="fl">Tip utilități</label>
+                <select className="fi" value={editData.utilitati_tip||'variabil'} onChange={e => setEditData({...editData, utilitati_tip: e.target.value})}>
+                  <option value="variabil">Variabil (introduc lunar)</option>
+                  <option value="fix">Fix (sumă fixă/lună)</option>
+                </select>
+              </div>
               <div className="fg"><label className="fl">Utilități (RON)</label>
                 <input className="fi" type="number" placeholder="0" value={editData.pret_utilitati||''} onChange={e => setEditData({...editData, pret_utilitati: e.target.value})} />
               </div>
-              <div className="fg"><label className="fl">Tip utilități</label>
-                <select className="fi" value={editData.utilitati_tip||'fix'} onChange={e => setEditData({...editData, utilitati_tip: e.target.value})}>
-                  <option value="fix">Fix (sumă fixă/lună)</option>
-                  <option value="variabil">Variabil (introduc lunar)</option>
-                </select>
-              </div>
             </div>
           )}
+          <div className="r2">
+            <div className="fg"><label className="fl">Plată</label>
+              <select className="fi" value={editData.plata||'OP'} onChange={e => setEditData({...editData, plata: e.target.value})}>
+                <option value="OP">OP</option><option value="Cash">Cash</option>
+              </select>
+            </div>
+          </div>
           <div style={{ height: '0.5px', background: '#eee', margin: '10px 0' }}></div>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 6 }}>PROGRAMARE AUTOMATĂ CURĂȚENIE (opțional)</div>
           <div className="r2">
