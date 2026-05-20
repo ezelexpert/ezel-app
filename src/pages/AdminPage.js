@@ -128,8 +128,7 @@ export default function AdminPage() {
       setModal(null)
       await updateApartament(nr, fields)
       return
-    }
-   if (!fields.pret || Number(fields.pret) <= 0) { alert('Pretul este obligatoriu!'); return }
+    }if (fields.status !== 'special' && (!fields.pret || Number(fields.pret) <= 0)) { alert('Pretul este obligatoriu!'); return }
     if (!fields.tip_serviciu) fields.tip_serviciu = 'cazare'
     if (fields.tip_serviciu !== 'chirie') { fields.pret_utilitati = 0; fields.utilitati_tip = 'fix' }
     // Firma completata = Ocupat automat
