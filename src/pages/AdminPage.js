@@ -156,10 +156,11 @@ export default function AdminPage() {
       await updateApartament(nr, fields)
       return
     }
-    if (!fields.pret || Number(fields.pret) <= 0) { alert('Pretul este obligatoriu!'); return }
+    if (fields.status !== 'special' && (!fields.pret || Number(fields.pret) <= 0)) { alert('Pretul este obligatoriu!'); return }
     if (!fields.tip_serviciu) fields.tip_serviciu = 'cazare'
     if (fields.tip_serviciu !== 'chirie') { fields.pret_utilitati = 0; fields.utilitati_tip = 'fix' }
-    // Firma completata NU seteaza automat statusul
+    // Firma completata = Ocupat automat
+    if (fields.firma && fields.firma.trim()) { fields.status = 'activ' }
     // Data eliberare = status Elibereaza automat
     if (fields.data_elib && fields.data_elib.trim()) {
       fields.status = 'elib'
@@ -202,10 +203,12 @@ export default function AdminPage() {
 Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fields.firma.trim()}"?`
         )
         if (confirmat) {
+          // Foloseste numele vechi (cel deja existent in sistem)
+          fields.firma = similar.firma
           const aDeActualizat = apts.filter(a => a.firma === similar.firma && a.nr !== nr).map(a => a.nr)
           if (aDeActualizat.length > 0) {
-            await updateApartamenteMultiple(aDeActualizat, { firma: fields.firma.trim() })
-            setApts(prev => prev.map(a => a.firma === similar.firma && a.nr !== nr ? { ...a, firma: fields.firma.trim() } : a))
+            await updateApartamenteMultiple(aDeActualizat, { firma: similar.firma })
+            setApts(prev => prev.map(a => a.firma === similar.firma && a.nr !== nr ? { ...a, firma: similar.firma } : a))
           }
         }
       }
@@ -488,6 +491,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
               <tbody>
                 {filteredApts.map(a => {
                   const [bc, bl] = ST_MAP[a.status] || ['bk','—']
+                  const statusLabel = a.status === 'elib' && a.data_elib ? `Elib. ${a.data_elib}` : bl
                   const isDbl = a.tip === 'dublu' || String(a.nr).startsWith('D')
                   return (
                     <tr key={a.nr} className={selApts.has(a.nr) ? 'sel' : ''}>
@@ -500,7 +504,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
                       </td>
                       <td>{a.firma || '—'}</td>
                       <td style={{ color: '#888', fontSize: 11 }}>{a.nota || '—'}</td>
-                      <td><span className={`badge ${bc}`}>{bl}</span></td>
+                      <td><span className={`badge ${bc}`}>{statusLabel}</span></td>
                       <td>{a.pret ? `${a.pret} RON` : '—'}</td>
                       <td style={{ fontSize: 11, color: '#888' }}>{a.ultima_curatenie || '—'}</td>
                       <td><button className="btn" style={{ height: 24, fontSize: 11 }} onClick={() => { setEditData({ ...a }); setModal('editApt') }}>✏️</button></td>
