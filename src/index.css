@@ -16,7 +16,6 @@ input, select, textarea { font-family: inherit; }
 .br2 { background: #FDECEA; color: #c0392b; }
 .bk { background: #f0f0f0; color: #555; }
 .bp2 { background: #EDE7F6; color: #4527A0; }
-
 .tip-d { font-size: 9px; background: #EDE7F6; color: #4527A0; padding: 1px 4px; border-radius: 3px; margin-left: 3px; }
 
 /* Btn */
@@ -67,10 +66,10 @@ table.tbl tr { user-select: none; }
 /* Calendar */
 table.cal { border-collapse: collapse; font-size: 11px; min-width: 100%; }
 table.cal th { background: #1F3864; color: #fff; padding: 4px 2px; text-align: center; font-weight: 600; white-space: nowrap; min-width: 32px; position: sticky; top: 0; z-index: 10; }
-table.cal th.ca { min-width: 130px; text-align: left; padding-left: 8px; position: sticky; left: 0; z-index: 20; }
+table.cal th.ca { min-width: 100px; text-align: left; padding-left: 8px; position: sticky; left: 0; z-index: 20; }
 table.cal th.we { background: #2F5496; }
-table.cal td { padding: 2px; text-align: center; border: 0.5px solid #eee; cursor: pointer; height: 24px; min-width: 32px; vertical-align: middle; font-weight: 600; font-size: 11px; }
-table.cal td.ca { background: #f8f9ff; font-weight: 600; color: #1F3864; text-align: left; padding-left: 8px; position: sticky; left: 0; z-index: 5; font-size: 11px; cursor: default; white-space: nowrap; }
+table.cal td { padding: 2px; text-align: center; border: 0.5px solid #eee; cursor: pointer; height: 24px; min-width: 28px; vertical-align: middle; font-weight: 600; font-size: 11px; }
+table.cal td.ca { background: #f8f9ff; font-weight: 600; color: #1F3864; text-align: left; padding-left: 6px; position: sticky; left: 0; z-index: 5; font-size: 10px; cursor: default; white-space: nowrap; }
 table.cal td.we { background: #fafafa; }
 table.cal td:hover:not(.ca) { background: #EBF1FB !important; }
 table.cal td.cg { background: #FFD700 !important; color: #5A4200; }
@@ -98,3 +97,91 @@ table.cal td.ct { outline: 2px solid #c0392b !important; outline-offset: -1px; }
 .hint { font-size: 10px; color: #aaa; margin-top: 2px; }
 .loading { text-align: center; padding: 40px; color: #aaa; font-size: 13px; }
 .firma-av { width: 28px; height: 28px; border-radius: 50%; background: #EBF1FB; color: #1F3864; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════════════════════
+   RESPONSIVE — TABLET (max 900px)
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .modal { max-width: 95vw; padding: 16px; }
+  table.tbl th:nth-child(3),
+  table.tbl td:nth-child(3) { display: none; } /* Ascunde coloana Locuri */
+  table.tbl th:nth-child(8),
+  table.tbl td:nth-child(8) { display: none; } /* Ascunde Ultima cur. */
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RESPONSIVE — MOBIL (max 600px)
+═══════════════════════════════════════════════════════════ */
+@media (max-width: 600px) {
+  /* General */
+  body { font-size: 13px; }
+
+  /* Padding principal mai mic */
+  div[style*="padding: 12px"] { padding: 8px !important; }
+
+  /* Topbar */
+  div[style*="fontSize: 15"] { font-size: 14px !important; }
+
+  /* Butoane mai mici pe mobil */
+  .btn { padding: 5px 10px; font-size: 11px; height: 30px; }
+
+  /* Form - un singur rand pe mobil */
+  .r2 { grid-template-columns: 1fr; }
+
+  /* Modal full screen pe mobil */
+  .modal { max-width: 100%; border-radius: 14px 14px 0 0; margin-top: auto; }
+  .overlay { align-items: flex-end; padding: 0; }
+
+  /* Tabel apartamente - ascunde coloane */
+  table.tbl th:nth-child(3),
+  table.tbl td:nth-child(3) { display: none; } /* Locuri */
+  table.tbl th:nth-child(5),
+  table.tbl td:nth-child(5) { display: none; } /* Nota */
+  table.tbl th:nth-child(7),
+  table.tbl td:nth-child(7) { display: none; } /* Pret */
+  table.tbl th:nth-child(8),
+  table.tbl td:nth-child(8) { display: none; } /* Ultima cur */
+
+  /* Calendar - coloane mai mici */
+  table.cal th { min-width: 22px; font-size: 9px; padding: 3px 1px; }
+  table.cal td { min-width: 22px; height: 20px; font-size: 10px; }
+  table.cal th.ca { min-width: 70px; font-size: 9px; }
+  table.cal td.ca { min-width: 70px; font-size: 9px; padding-left: 4px; }
+
+  /* Stats grid */
+  .stats { grid-template-columns: repeat(2, 1fr); }
+
+  /* Srch row */
+  .srch-row { gap: 4px; }
+  .srch-row select { max-width: 120px; }
+
+  /* Cards */
+  .card { padding: 10px 12px; }
+
+  /* Dropdown nav - text mai scurt */
+  .nav-label-text { display: none; }
+
+  /* Mbar */
+  .mbar { padding: 6px 8px; gap: 4px; }
+  .mcnt { font-size: 11px; }
+
+  /* Firma avatar */
+  .firma-av { width: 24px; height: 24px; font-size: 9px; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TOUCH - active states pentru mobile
+═══════════════════════════════════════════════════════════ */
+@media (hover: none) {
+  .btn:active { opacity: .8; }
+  table.cal td:active:not(.ca) { background: #EBF1FB !important; }
+  .asi:active { border-color: #1F3864; background: #EBF1FB; }
+}
+
+/* Hamburger - ascuns pe desktop, vizibil pe mobil */
+.hamburger-btn { display: none !important; }
+@media (max-width: 700px) {
+  .hamburger-btn { display: block !important; }
+  /* Ascunde nav desktop pe mobil */
+  div[style*="padding: '0 12px'"] > div { display: none; }
+}
