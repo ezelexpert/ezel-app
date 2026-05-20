@@ -695,7 +695,17 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
       {modal === 'editApt' && (
         <Modal title={`Editează AP ${editData.nr}`} onClose={() => setModal(null)}>
           <div className="fg"><label className="fl">Firmă</label>
-            <input className="fi" value={editData.firma||''} onChange={e => setEditData({...editData, firma: e.target.value})} />
+            <input className="fi" value={editData.firma||''} onChange={e => setEditData({...editData, firma: e.target.value})}
+  onBlur={e => {
+    const val = e.target.value.trim()
+    if (!val) return
+    const firmeExistente = [...new Set(apts.filter(a => a.firma && a.nr !== editData.nr).map(a => a.firma))]
+    const similar = gasesteFirmaSimilara(val, firmeExistente, 0.5)
+    if (similar && similar.firma.toLowerCase() !== val.toLowerCase()) {
+      const ok = window.confirm(`Ai scris "${val}". Am găsit firma similară "${similar.firma}" (${Math.round(similar.score*100)}% potrivire).\n\nFolosești "${similar.firma}"?`)
+      if (ok) setEditData(prev => ({...prev, firma: similar.firma}))
+    }
+  }} />
           </div>
           <div className="fg"><label className="fl">Notă</label>
             <input className="fi" value={editData.nota||''} onChange={e => setEditData({...editData, nota: e.target.value})} />
