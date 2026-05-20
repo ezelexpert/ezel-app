@@ -348,64 +348,113 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
           <div style={{ fontSize: 15, fontWeight: 700 }}>EZEL — Manager</div>
           <div style={{ fontSize: 11, opacity: .7 }}>{new Date().toLocaleDateString('ro-RO', { weekday: 'long', day: 'numeric', month: 'long' })} · {getNume()}</div>
         </div>
+        <button onClick={() => setOpenDropdown('mobile')}
+          style={{ background:'rgba(255,255,255,.18)', border:'1px solid rgba(255,255,255,.3)', color:'#fff', borderRadius:7, padding:'5px 10px', cursor:'pointer', fontSize:18, lineHeight:1, display:'none' }}
+          className="hamburger-btn">☰</button>
         <button className="btn" style={{ background: 'rgba(255,255,255,.18)', border: '1px solid rgba(255,255,255,.3)', color: '#fff', fontSize: 12 }} onClick={handleLogout}>Ieși</button>
       </div>
 
-      {/* Navigare cu dropdown */}
-      <div style={{ background: '#fff', borderBottom: '1.5px solid #e0e0e0', padding: '0 12px', display: 'flex', gap: 2, position: 'relative', zIndex: 40 }}
-        onMouseLeave={() => setOpenDropdown(null)}>
-        {NAV_GROUPS.map(group => {
-          const isActive = group.single
-            ? tab === group.tab
-            : group.items?.some(i => i.tab === tab)
-          return (
-            <div key={group.key} style={{ position: 'relative' }}
-              onMouseEnter={() => !group.single && setOpenDropdown(group.key)}>
-              <div
-                onClick={() => {
-                  if (group.single) { setTab(group.tab); setOpenDropdown(null) }
-                  else setOpenDropdown(openDropdown === group.key ? null : group.key)
-                }}
-                style={{
-                  padding: '11px 14px', fontSize: 13, cursor: 'pointer', fontWeight: 600,
-                  color: isActive ? '#1F3864' : '#555',
-                  borderBottom: `2.5px solid ${isActive ? '#1F3864' : 'transparent'}`,
-                  display: 'flex', alignItems: 'center', gap: 4, userSelect: 'none',
-                  whiteSpace: 'nowrap'
-                }}>
-                {group.label}
-                {!group.single && <span style={{ fontSize: 9, opacity: .6 }}>{openDropdown === group.key ? '▲' : '▼'}</span>}
-              </div>
-              {/* Dropdown */}
-              {!group.single && openDropdown === group.key && (
-                <div style={{
-                  position: 'absolute', top: '100%', left: 0, minWidth: 180,
-                  background: '#fff', borderRadius: '0 8px 8px 8px',
-                  boxShadow: '0 8px 24px rgba(0,0,0,.12)', border: '1px solid #e8e8e8',
-                  zIndex: 100, overflow: 'hidden'
-                }}>
-                  {group.items.map(item => (
-                    <div key={item.tab}
-                      onClick={() => { setTab(item.tab); setOpenDropdown(null) }}
-                      style={{
-                        padding: '10px 16px', fontSize: 13, cursor: 'pointer',
-                        background: tab === item.tab ? '#EBF1FB' : '#fff',
-                        color: tab === item.tab ? '#1F3864' : '#333',
-                        fontWeight: tab === item.tab ? 600 : 400,
-                        borderLeft: tab === item.tab ? '3px solid #1F3864' : '3px solid transparent',
-                        transition: 'background .15s'
-                      }}
-                      onMouseEnter={e => { if(tab !== item.tab) e.currentTarget.style.background = '#f5f7fa' }}
-                      onMouseLeave={e => { if(tab !== item.tab) e.currentTarget.style.background = '#fff' }}>
-                      {item.label}
-                    </div>
-                  ))}
+      {/* Navigare cu dropdown + hamburger mobil */}
+      <div style={{ background: '#fff', borderBottom: '1.5px solid #e0e0e0', position: 'relative', zIndex: 40 }}>
+        {/* Desktop nav */}
+        <div style={{ padding: '0 12px', display: 'flex', gap: 2 }}
+          onMouseLeave={() => setOpenDropdown(null)}>
+          {NAV_GROUPS.map(group => {
+            const isActive = group.single
+              ? tab === group.tab
+              : group.items?.some(i => i.tab === tab)
+            return (
+              <div key={group.key} style={{ position: 'relative' }}
+                onMouseEnter={() => !group.single && setOpenDropdown(group.key)}>
+                <div
+                  onClick={() => {
+                    if (group.single) { setTab(group.tab); setOpenDropdown(null) }
+                    else setOpenDropdown(openDropdown === group.key ? null : group.key)
+                  }}
+                  style={{
+                    padding: '11px 10px', fontSize: 12, cursor: 'pointer', fontWeight: 600,
+                    color: isActive ? '#1F3864' : '#555',
+                    borderBottom: `2.5px solid ${isActive ? '#1F3864' : 'transparent'}`,
+                    display: 'flex', alignItems: 'center', gap: 3, userSelect: 'none',
+                    whiteSpace: 'nowrap'
+                  }}>
+                  {group.label}
+                  {!group.single && <span style={{ fontSize: 9, opacity: .6 }}>{openDropdown === group.key ? '▲' : '▼'}</span>}
                 </div>
-              )}
-            </div>
-          )
-        })}
+                {!group.single && openDropdown === group.key && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, minWidth: 180,
+                    background: '#fff', borderRadius: '0 8px 8px 8px',
+                    boxShadow: '0 8px 24px rgba(0,0,0,.12)', border: '1px solid #e8e8e8',
+                    zIndex: 100, overflow: 'hidden'
+                  }}>
+                    {group.items.map(item => (
+                      <div key={item.tab}
+                        onClick={() => { setTab(item.tab); setOpenDropdown(null) }}
+                        style={{
+                          padding: '10px 16px', fontSize: 13, cursor: 'pointer',
+                          background: tab === item.tab ? '#EBF1FB' : '#fff',
+                          color: tab === item.tab ? '#1F3864' : '#333',
+                          fontWeight: tab === item.tab ? 600 : 400,
+                          borderLeft: tab === item.tab ? '3px solid #1F3864' : '3px solid transparent',
+                        }}
+                        onMouseEnter={e => { if(tab !== item.tab) e.currentTarget.style.background = '#f5f7fa' }}
+                        onMouseLeave={e => { if(tab !== item.tab) e.currentTarget.style.background = '#fff' }}>
+                        {item.label}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
       </div>
+
+      {/* Meniu mobil - expandabil */}
+      {openDropdown === 'mobile' && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.4)', zIndex:150 }}
+          onClick={() => setOpenDropdown(null)}>
+          <div style={{ position:'absolute', top:0, right:0, width:260, height:'100%', background:'#fff', boxShadow:'-4px 0 20px rgba(0,0,0,.15)', overflowY:'auto' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ background:'#1F3864', padding:'16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <div style={{ color:'#fff', fontWeight:700, fontSize:15 }}>EZEL</div>
+              <button onClick={() => setOpenDropdown(null)}
+                style={{ background:'none', border:'none', color:'#fff', fontSize:20, cursor:'pointer' }}>✕</button>
+            </div>
+            {NAV_GROUPS.map(group => (
+              <div key={group.key}>
+                {group.single ? (
+                  <div onClick={() => { setTab(group.tab); setOpenDropdown(null) }}
+                    style={{ padding:'13px 16px', cursor:'pointer', fontSize:14, fontWeight:600,
+                      background: tab===group.tab?'#EBF1FB':'#fff',
+                      color: tab===group.tab?'#1F3864':'#333',
+                      borderBottom:'1px solid #f0f0f0' }}>
+                    {group.label}
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ padding:'10px 16px 5px', fontSize:11, fontWeight:700, color:'#aaa', letterSpacing:1, textTransform:'uppercase', background:'#f8f9fa', borderBottom:'1px solid #eee' }}>
+                      {group.label}
+                    </div>
+                    {group.items.map(item => (
+                      <div key={item.tab} onClick={() => { setTab(item.tab); setOpenDropdown(null) }}
+                        style={{ padding:'11px 20px', cursor:'pointer', fontSize:13,
+                          background: tab===item.tab?'#EBF1FB':'#fff',
+                          color: tab===item.tab?'#1F3864':'#333',
+                          fontWeight: tab===item.tab?600:400,
+                          borderLeft: tab===item.tab?'3px solid #1F3864':'3px solid transparent',
+                          borderBottom:'1px solid #f5f5f5' }}>
+                        {item.label}
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ padding: 12, maxWidth: 1200, margin: '0 auto' }}>
 
