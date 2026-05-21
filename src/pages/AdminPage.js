@@ -167,8 +167,11 @@ export default function AdminPage() {
   }
   function clearSel() { setSelApts(new Set()) }
 
-  async function saveEditApt() {
+    async function saveEditApt() {
     const { nr, ...fields } = editData
+    const aptCurent = apts.find(a => a.nr === nr)
+    const aziNow = new Date().toISOString().split('T')[0]
+
     // Daca status = liber, reseteaza toate datele clientului
     if (fields.status === 'liber') {
       fields.firma = ''
@@ -180,52 +183,19 @@ export default function AdminPage() {
       fields.utilitati_tip = 'fix'
       fields.nr_nopti = null
       fields.data_checkin = ''
-     // Recalculeaza curatenii la modificare check-in sau data elib
-const azi = new Date().toISOString().split('T')[0]
-if (aptCurent) {
-  // Check-in schimbat -> sterge curateniile viitoare si reprogrameaza
-  if (fields.data_checkin && fields.data_checkin !== aptCurent.data_checkin) {
-    const { data: curViit } = await supabase.from('curatenie').select('id')
-      .eq('nr_apt', nr).gte('data_programata', azi).neq('status_curatenie', 'finalizata')
-      .neq('tip_curatenie', 'generala')
-    if (curViit?.length > 0) for (const c of curViit) await stergeCuratenie(c.id)
-    // Adauga prima curatenie la check-in + 7 zile
-    const checkin = new Date(fields.data_checkin)
-    checkin.setDate(checkin.getDate() + 7)
-    while ([0,6].includes(checkin.getDay())) checkin.setDate(checkin.getDate() + 1)
-    const dataUrm = checkin.getFullYear() + '-' + String(checkin.getMonth()+1).padStart(2,'0') + '-' + String(checkin.getDate()).padStart(2,'0')
-    await programeazaCuratenie({ data_programata: dataUrm, nr_apt: nr, tip_apt: fields.tip||aptCurent.tip, firma: fields.firma||aptCurent.firma, tip_curatenie: 'intretinere', observatii: 'Auto la check-in nou' })
-  }
-  // Data elib schimbata -> muta curatenia generala
-  if (fields.data_elib && fields.data_elib !== aptCurent.data_elib) {
-    // Sterge curatenia generala veche
-    const { data: genVechi } = await supabase.from('curatenie').select('id')
-      .eq('nr_apt', nr).eq('tip_curatenie', 'generala').neq('status_curatenie', 'finalizata')
-    if (genVechi?.length > 0) for (const c of genVechi) await stergeCuratenie(c.id)
-    // Adauga curatenie generala pe noua data elib
-    await programeazaCuratenie({ data_programata: fields.data_elib, nr_apt: nr, tip_apt: fields.tip||aptCurent.tip, firma: fields.firma||aptCurent.firma, tip_curatenie: 'generala', observatii: 'Auto la modificare elib' })
-  }
-  // Eliberare spontana azi -> adauga curatenie generala azi daca nu exista
-  if (fields.data_elib === azi && aptCurent.data_elib !== azi) {
-    const { data: genAzi } = await supabase.from('curatenie').select('id')
-      .eq('nr_apt', nr).eq('data_programata', azi).eq('tip_curatenie', 'generala')
-    if (!genAzi?.length) await programeazaCuratenie({ data_programata: azi, nr_apt: nr, tip_apt: fields.tip||aptCurent.tip, firma: fields.firma||aptCurent.firma, tip_curatenie: 'generala', observatii: 'Eliberare spontana' })
-  }
-}
       setApts(prev => prev.map(a => a.nr === nr ? { ...a, ...fields } : a))
       setModal(null)
       await updateApartament(nr, fields)
-      // Sterge curateniile viitoare neprogramate pentru acest apartament
-      const azi = new Date().toISOString().split('T')[0]
+      // Sterge curateniile viitoare
       const { data: curViit } = await supabase.from('curatenie').select('id')
-        .eq('nr_apt', nr).gte('data_programata', azi).neq('status_curatenie', 'finalizata')
+        .eq('nr_apt', nr).gte('data_programata', aziNow).neq('status_curatenie', 'finalizata')
       if (curViit?.length > 0) {
         for (const c of curViit) await stergeCuratenie(c.id)
-        setCuratenii(prev => prev.filter(c => !(c.nr_apt === nr && c.data_programata >= azi && c.status_curatenie !== 'finalizata')))
+        setCuratenii(prev => prev.filter(c => !(c.nr_apt === nr && c.data_programata >= aziNow && c.status_curatenie !== 'finalizata')))
       }
       return
     }
-    if (fields.status !== 'special' && (!fields.pret || Number(fields.pret) <= 0)) { alert('Pretul este obligatoriu!'); return }
+        if (fields.status !== 'special' && (!fields.pret || Number(fields.pret) <= 0)) { alert('Pretul este obligatoriu!'); return }
     if (!fields.tip_serviciu) fields.tip_serviciu = 'cazare'
     if (fields.tip_serviciu !== 'chirie') { fields.pret_utilitati = 0; fields.utilitati_tip = 'fix' }
     // Firma completata = Ocupat automat
@@ -242,21 +212,19 @@ if (aptCurent) {
       fields.status = 'elib'
     }
     // Salveaza firma veche in istoric daca se schimba clientul
-    const aptCurent = apts.find(a => a.nr === nr)
     if (aptCurent?.firma && fields.firma && aptCurent.firma !== fields.firma) {
-      const azi = new Date().toISOString().split('T')[0]
       await supabase.from('istoric_firme').insert({
         firma: aptCurent.firma,
         nr_apt: nr,
         tip_apt: aptCurent.tip || 'simplu',
-        data_start: aptCurent.data_checkin || azi,
-        data_end: azi,
+        data_start: aptCurent.data_checkin || aziNow,
+        data_end: aziNow,
         pret_noapte: aptCurent.pret || 0,
         nr_zile: 0,
         total_estimat: 0,
         observatii: 'Auto-salvat la schimbare client',
         pret_mediu: aptCurent.pret || 0,
-        ultima_data: azi,
+        ultima_data: aziNow,
         nr_apartamente: 1
       })
     }
@@ -295,9 +263,38 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
       }
     }
 
+    // Recalculeaza curatenii la modificare check-in sau data elib
+    if (aptCurent) {
+      // Check-in schimbat -> sterge curateniile de intretinere si adauga prima la +7 zile
+      if (fields.data_checkin && fields.data_checkin !== aptCurent.data_checkin) {
+        const { data: curViit } = await supabase.from('curatenie').select('id')
+          .eq('nr_apt', nr).gte('data_programata', aziNow).neq('status_curatenie', 'finalizata').neq('tip_curatenie', 'generala')
+        if (curViit?.length > 0) for (const c of curViit) await stergeCuratenie(c.id)
+        const checkin = new Date(fields.data_checkin)
+        checkin.setDate(checkin.getDate() + 7)
+        while ([0,6].includes(checkin.getDay())) checkin.setDate(checkin.getDate() + 1)
+        const dataUrm = checkin.getFullYear() + '-' + String(checkin.getMonth()+1).padStart(2,'0') + '-' + String(checkin.getDate()).padStart(2,'0')
+        await programeazaCuratenie({ data_programata: dataUrm, nr_apt: nr, tip_apt: fields.tip||aptCurent.tip, firma: fields.firma||aptCurent.firma, tip_curatenie: 'intretinere', observatii: 'Auto la check-in nou' })
+      }
+      // Data elib schimbata -> muta curatenia generala pe noua data
+      if (fields.data_elib && fields.data_elib !== aptCurent.data_elib) {
+        const { data: genVechi } = await supabase.from('curatenie').select('id')
+          .eq('nr_apt', nr).eq('tip_curatenie', 'generala').neq('status_curatenie', 'finalizata')
+        if (genVechi?.length > 0) for (const c of genVechi) await stergeCuratenie(c.id)
+        await programeazaCuratenie({ data_programata: fields.data_elib, nr_apt: nr, tip_apt: fields.tip||aptCurent.tip, firma: fields.firma||aptCurent.firma, tip_curatenie: 'generala', observatii: 'Auto la modificare elib' })
+      }
+      // Eliberare spontana azi
+      if (fields.data_elib === aziNow && aptCurent.data_elib !== aziNow) {
+        const { data: genAzi } = await supabase.from('curatenie').select('id')
+          .eq('nr_apt', nr).eq('data_programata', aziNow).eq('tip_curatenie', 'generala')
+        if (!genAzi?.length) await programeazaCuratenie({ data_programata: aziNow, nr_apt: nr, tip_apt: fields.tip||aptCurent.tip, firma: fields.firma||aptCurent.firma, tip_curatenie: 'generala', observatii: 'Eliberare spontana' })
+      }
+    }
+
     setApts(prev => prev.map(a => a.nr === nr ? { ...a, ...fields } : a))
     setModal(null)
     await updateApartament(nr, fields)
+    const c = await getCuratenie(); setCuratenii(c)
   }
 
   async function saveAddApt() {
