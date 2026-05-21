@@ -1083,32 +1083,4 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
       )}
     </div>
   )
-}      {/* Navigare cu dropdown */}
-      <div className="nav-bar" onMouseLeave={() => setOpenDropdown(null)}>
-        {NAV_GROUPS.map(group => {
-          const isActive = group.single ? tab === group.tab : group.items?.some(i => i.tab === tab)
-          return (
-            <div key={group.key} style={{ position: 'relative' }}
-              onMouseEnter={() => !group.single && setOpenDropdown(group.key)}>
-              <div className={`nav-item ${isActive ? 'active' : ''}`}
-                onClick={() => {
-                  if (group.single) { setTab(group.tab); setOpenDropdown(null) }
-                  else setOpenDropdown(openDropdown === group.key ? null : group.key)
-                }}>
-                {group.label}
-                {!group.single && <span style={{ fontSize: 9, opacity: .5 }}>{openDropdown === group.key ? '▲' : '▼'}</span>}
-              </div>
-              {!group.single && openDropdown === group.key && (
-                <div className="nav-dropdown">
-                  {group.items.map(item => (
-                    <div key={item.tab} className={`nav-dropdown-item ${tab === item.tab ? 'active' : ''}`}
-                      onClick={() => { setTab(item.tab); setOpenDropdown(null) }}>
-                      {item.label}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+}
