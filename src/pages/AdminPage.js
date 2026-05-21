@@ -183,6 +183,14 @@ export default function AdminPage() {
       setApts(prev => prev.map(a => a.nr === nr ? { ...a, ...fields } : a))
       setModal(null)
       await updateApartament(nr, fields)
+      // Sterge curateniile viitoare neprogramate pentru acest apartament
+      const azi = new Date().toISOString().split('T')[0]
+      const { data: curViit } = await supabase.from('curatenie').select('id')
+        .eq('nr_apt', nr).gte('data_programata', azi).neq('status_curatenie', 'finalizata')
+      if (curViit?.length > 0) {
+        for (const c of curViit) await stergeCuratenie(c.id)
+        setCuratenii(prev => prev.filter(c => !(c.nr_apt === nr && c.data_programata >= azi && c.status_curatenie !== 'finalizata')))
+      }
       return
     }
     if (fields.status !== 'special' && (!fields.pret || Number(fields.pret) <= 0)) { alert('Pretul este obligatoriu!'); return }
@@ -364,12 +372,19 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
   })
 
   const byFirmaInc = {}
+  const aziInc = new Date()
   apts.filter(a => a.firma && a.status === 'activ' && Number(a.pret) > 0).forEach(a => {
-    if (!byFirmaInc[a.firma]) byFirmaInc[a.firma] = { apts: [], p: Number(a.pret), pl: a.plata }
-    byFirmaInc[a.firma].apts.push(a.nr)
+    if (!byFirmaInc[a.firma]) byFirmaInc[a.firma] = { apts: [], p: Number(a.pret), pl: a.plata, tip: a.tip_serviciu }
+    // Calculare zile: de la checkin pana azi sau 30 zile pentru chirie
+    let zile = 30
+    if (a.tip_serviciu === 'cazare' && a.data_checkin) {
+      const checkin = new Date(a.data_checkin)
+      zile = Math.max(1, Math.round((aziInc - checkin) / 86400000))
+    }
+    byFirmaInc[a.firma].apts.push({ nr: a.nr, zile, pret: Number(a.pret) })
   })
   const incRows = Object.entries(byFirmaInc).sort((a,b) => b[1].apts.length - a[1].apts.length)
-  const incTotal = incRows.reduce((s,[,v]) => s + v.apts.length * v.p * 30, 0)
+  const incTotal = incRows.reduce((s,[,v]) => s + v.apts.reduce((ss,a) => ss + a.zile * a.pret, 0), 0)
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#1F3864', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
@@ -690,8 +705,13 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
           <div className="fg"><label className="fl">Firmă</label>
             <input className="fi" value={editData.firma||''} onChange={e => setEditData({...editData, firma: e.target.value})} />
           </div>
-          <div className="fg"><label className="fl">Notă (ex: 2c/l)</label>
-            <input className="fi" value={editData.nota||''} onChange={e => setEditData({...editData, nota: e.target.value})} />
+          <div className="fg"><label className="fl">Notă (ex: 2c/l = 2 curățenii/lună)</label>
+            <input className="fi" value={editData.nota||''} onChange={e => setEditData({...editData, nota: e.target.value})}
+              placeholder="ex: 2c/l, 1c/l, 4c/l" />
+            {editData.nota && !/\d+\s*c\s*\/?\s*[ls]/i.test(editData.nota) && editData.nota.trim() &&
+              <div style={{ fontSize:11, color:'#c0392b', marginTop:3 }}>⚠️ Format nerecunoscut. Folosește ex: 2c/l</div>}
+            {editData.nota && /\d+\s*c\s*\/?\s*[ls]/i.test(editData.nota) &&
+              <div style={{ fontSize:11, color:'#375623', marginTop:3 }}>✓ {editData.nota.match(/(\d+)/)?.[1]} curățenii/lună - auto-programat</div>}
           </div>
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', background:'#f8f9fa', borderRadius:8, marginBottom:8, cursor:'pointer' }}
             onClick={() => setEditData({...editData, prosop: !editData.prosop})}>
