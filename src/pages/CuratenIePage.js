@@ -106,7 +106,27 @@ export default function CuratenIePage() {
   const user = getUser()
   const nume = getNume()
 
-  useEffect(() => { load(); loadPontaj() }, [])
+  useEffect(() => {
+    load(); loadPontaj()
+    // Solicita permisiune pentru notificari browser
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+  }, [])
+
+  // Verifica curatenii urgente/spontane si notifica
+  useEffect(() => {
+    if (!azi || azi.length === 0) return
+    const urgente = azi.filter(c => c.tip_curatenie === 'urgenta' || c.observatii?.toLowerCase().includes('spontan'))
+    if (urgente.length > 0 && Notification.permission === 'granted') {
+      urgente.forEach(c => {
+        new Notification('🧹 Curățenie urgentă!', {
+          body: `AP ${c.nr_apt} - ${c.firma || 'Liber'} - ${c.tip_curatenie}`,
+          icon: '/favicon.ico'
+        })
+      })
+    }
+  }, [azi])
 
   useEffect(() => {
     if (tab === 2) {
