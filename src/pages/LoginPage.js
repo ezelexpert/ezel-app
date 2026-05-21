@@ -15,7 +15,7 @@ export default function LoginPage() {
     // Daca e deja logat, redirecteaza
     const s = getSession()
     if (s) {
-      navigate(s.role === 'admin' ? '/admin' : '/curatenie', { replace: true })
+      navigate(s.role === 'admin' ? '/admin' : s.role === 'lenjerii' ? '/lenjerii' : '/curatenie', { replace: true })
       return
     }
     // Incarca lista utilizatori
@@ -39,7 +39,7 @@ export default function LoginPage() {
       return
     }
 
-    navigate(user.rol === 'admin' ? '/admin' : '/curatenie', { replace: true })
+    navigate(user.rol === 'admin' ? '/admin' : user.rol === 'lenjerii' ? '/lenjerii' : '/curatenie', { replace: true })
   }
 
   const admini = utilizatori.filter(u => u.rol === 'admin')
