@@ -1,49 +1,47 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getSession, getUtilizatori, loginCuNumeSiParola } from '../lib/auth'
+import { getSession, loginCuNumeSiParola, getUtilizatori, saveUser } from '../lib/auth'
 
 export default function LoginPage() {
   const navigate = useNavigate()
   const [utilizatori, setUtilizatori] = useState([])
-  const [selectat, setSelectat] = useState(null) // utilizatorul ales
+  const [tip, setTip] = useState(null) // 'admin' | 'curatenie'
   const [parola, setParola] = useState('')
   const [eroare, setEroare] = useState('')
   const [loading, setLoading] = useState(false)
-  const [loadingList, setLoadingList] = useState(true)
 
   useEffect(() => {
-    // Daca e deja logat, redirecteaza
     const s = getSession()
     if (s) {
       navigate(s.role === 'admin' ? '/admin' : s.role === 'lenjerii' ? '/lenjerii' : '/curatenie', { replace: true })
       return
     }
-    // Incarca lista utilizatori
-    getUtilizatori().then(list => {
-      setUtilizatori(list)
-      setLoadingList(false)
-    })
+    getUtilizatori().then(setUtilizatori)
   }, [navigate])
 
   async function handleLogin(e) {
     e.preventDefault()
-    if (!selectat || !parola.trim()) return
+    if (!parola.trim()) return
     setLoading(true)
     setEroare('')
 
-    const user = await loginCuNumeSiParola(selectat.id, parola.trim())
+    // Cauta utilizatorul cu parola si rolul selectat
+    // Lenjerii e detectat automat dupa parola
+    const totiUtilizatorii = utilizatori
+    const gasit = totiUtilizatorii.find(u => u.parola === parola.trim() &&
+      (tip === 'admin' ? u.rol === 'admin' :
+       tip === 'curatenie' ? (u.rol === 'curatenie' || u.rol === 'lenjerii') : false))
 
-    if (!user) {
-      setEroare('Parolă incorectă. Încearcă din nou.')
+    if (!gasit) {
+      setEroare('Parolă incorectă pentru acest rol.')
       setLoading(false)
       return
     }
 
-    navigate(user.rol === 'admin' ? '/admin' : user.rol === 'lenjerii' ? '/lenjerii' : '/curatenie', { replace: true })
+    saveUser(gasit)
+    navigate(gasit.rol === 'admin' ? '/admin' : gasit.rol === 'lenjerii' ? '/lenjerii' : '/curatenie', { replace: true })
+    setLoading(false)
   }
-
-  const admini = utilizatori.filter(u => u.rol === 'admin')
-  const curatenie = utilizatori.filter(u => u.rol === 'curatenie')
 
   return (
     <div style={{
@@ -53,7 +51,7 @@ export default function LoginPage() {
     }}>
       <div style={{
         background: '#fff', borderRadius: 20, padding: '36px 32px',
-        width: '100%', maxWidth: 400, boxShadow: '0 20px 60px rgba(0,0,0,.25)'
+        width: '100%', maxWidth: 380, boxShadow: '0 20px 60px rgba(0,0,0,.25)'
       }}>
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
@@ -61,119 +59,85 @@ export default function LoginPage() {
           <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>Sistem de management apartamente</div>
         </div>
 
-        {loadingList ? (
-          <div style={{ textAlign: 'center', padding: 20, color: '#aaa' }}>Se încarcă...</div>
+        {!tip ? (
+          // Pas 1: Selecteaza rolul
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#555', textAlign: 'center', marginBottom: 16 }}>
+              Selectează rolul tău
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button onClick={() => setTip('admin')}
+                style={{
+                  padding: '16px', borderRadius: 12, border: '1.5px solid #90B8E8',
+                  background: '#EBF1FB', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14
+                }}>
+                <div style={{ width: 44, height: 44, borderRadius: 10, background: '#1F3864', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
+                  👔
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#1F3864' }}>Manager</div>
+                  <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>Acces complet la aplicație</div>
+                </div>
+              </button>
+
+              <button onClick={() => setTip('curatenie')}
+                style={{
+                  padding: '16px', borderRadius: 12, border: '1.5px solid #C0DD97',
+                  background: '#E2EFDA', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14
+                }}>
+                <div style={{ width: 44, height: 44, borderRadius: 10, background: '#375623', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
+                  🧹
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#375623' }}>Curățenie & Lenjerii</div>
+                  <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>Curățenii, spălătorie, lenjerii</div>
+                </div>
+              </button>
+            </div>
+          </div>
         ) : (
+          // Pas 2: Parola
           <form onSubmit={handleLogin}>
+            <button type="button" onClick={() => { setTip(null); setParola(''); setEroare('') }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#888', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 4 }}>
+              ← Înapoi
+            </button>
 
-            {/* Pas 1: Selecteaza numele */}
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 8 }}>
-                Selectează numele tău
-              </label>
-
-              {/* Manageri */}
-              {admini.length > 0 && (
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 5, letterSpacing: 1, textTransform: 'uppercase' }}>Manageri</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {admini.map(u => (
-                      <div key={u.id} onClick={() => { setSelectat(u); setEroare(''); setParola('') }}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 10,
-                          padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
-                          border: `1.5px solid ${selectat?.id === u.id ? '#1F3864' : '#e0e0e0'}`,
-                          background: selectat?.id === u.id ? '#EBF1FB' : '#fff',
-                          transition: 'all .15s'
-                        }}>
-                        <div style={{
-                          width: 34, height: 34, borderRadius: 8, flexShrink: 0,
-                          background: selectat?.id === u.id ? '#1F3864' : '#f0f0f0',
-                          color: selectat?.id === u.id ? '#fff' : '#555',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 12, fontWeight: 700
-                        }}>
-                          {u.nume.split(' ')[0][0]}{u.nume.split(' ')[1]?.[0] || ''}
-                        </div>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: selectat?.id === u.id ? '#1F3864' : '#333' }}>
-                          {u.nume}
-                        </div>
-                        {selectat?.id === u.id && (
-                          <div style={{ marginLeft: 'auto', color: '#1F3864', fontSize: 16 }}>✓</div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Angajate curatenie */}
-              {curatenie.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 5, letterSpacing: 1, textTransform: 'uppercase' }}>Curățenie</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {curatenie.map(u => (
-                      <div key={u.id} onClick={() => { setSelectat(u); setEroare(''); setParola('') }}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 10,
-                          padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
-                          border: `1.5px solid ${selectat?.id === u.id ? '#375623' : '#e0e0e0'}`,
-                          background: selectat?.id === u.id ? '#E2EFDA' : '#fff',
-                          transition: 'all .15s'
-                        }}>
-                        <div style={{
-                          width: 34, height: 34, borderRadius: 8, flexShrink: 0,
-                          background: selectat?.id === u.id ? '#375623' : '#f0f0f0',
-                          color: selectat?.id === u.id ? '#fff' : '#555',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 12, fontWeight: 700
-                        }}>
-                          {u.nume.split(' ')[0][0]}{u.nume.split(' ')[1]?.[0] || ''}
-                        </div>
-                        <div style={{ fontSize: 13, fontWeight: 500, color: selectat?.id === u.id ? '#375623' : '#333' }}>
-                          {u.nume}
-                        </div>
-                        {selectat?.id === u.id && (
-                          <div style={{ marginLeft: 'auto', color: '#375623', fontSize: 16 }}>✓</div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+            <div style={{ background: tip === 'admin' ? '#EBF1FB' : '#E2EFDA', borderRadius: 10, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 20 }}>{tip === 'admin' ? '👔' : '🧹'}</span>
+              <div style={{ fontSize: 13, fontWeight: 600, color: tip === 'admin' ? '#1F3864' : '#375623' }}>
+                {tip === 'admin' ? 'Manager' : 'Curățenie & Lenjerii'}
+              </div>
             </div>
 
-            {/* Pas 2: Parola - apare doar dupa selectie */}
-            {selectat && (
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 6 }}>
-                  Parola ta
-                </label>
-                <input
-                  type="password"
-                  value={parola}
-                  onChange={e => { setParola(e.target.value); setEroare('') }}
-                  placeholder={`Parola pentru ${selectat.nume.split(' ')[0]}`}
-                  autoFocus
-                  style={{
-                    width: '100%', padding: '12px 14px', fontSize: 16,
-                    border: `1.5px solid ${eroare ? '#F5A0A0' : '#e0e0e0'}`,
-                    borderRadius: 10, outline: 'none', boxSizing: 'border-box',
-                    background: eroare ? '#FDECEA' : '#fff'
-                  }}
-                />
-                {eroare && <div style={{ fontSize: 12, color: '#c0392b', marginTop: 6 }}>⚠️ {eroare}</div>}
-              </div>
-            )}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 6 }}>
+                Parola ta
+              </label>
+              <input
+                type="password"
+                value={parola}
+                onChange={e => { setParola(e.target.value); setEroare('') }}
+                placeholder="Introdu parola"
+                autoFocus
+                style={{
+                  width: '100%', padding: '12px 14px', fontSize: 16,
+                  border: `1.5px solid ${eroare ? '#F5A0A0' : '#e0e0e0'}`,
+                  borderRadius: 10, outline: 'none', boxSizing: 'border-box',
+                  background: eroare ? '#FDECEA' : '#fff'
+                }}
+              />
+              {eroare && <div style={{ fontSize: 12, color: '#c0392b', marginTop: 6 }}>⚠️ {eroare}</div>}
+            </div>
 
-            <button type="submit" disabled={loading || !selectat || !parola.trim()}
+            <button type="submit" disabled={loading || !parola.trim()}
               style={{
                 width: '100%', padding: '13px',
-                background: (!selectat || !parola.trim()) ? '#ccc' : selectat?.rol === 'curatenie' ? '#375623' : '#1F3864',
+                background: !parola.trim() ? '#ccc' : tip === 'curatenie' ? '#375623' : '#1F3864',
                 color: '#fff', border: 'none', borderRadius: 10, fontSize: 15,
-                fontWeight: 600, cursor: (!selectat || !parola.trim()) ? 'not-allowed' : 'pointer'
+                fontWeight: 600, cursor: !parola.trim() ? 'not-allowed' : 'pointer'
               }}>
-              {loading ? 'Se verifică...' : selectat ? `Intră ca ${selectat.nume.split(' ')[0]}` : 'Selectează numele mai sus'}
+              {loading ? 'Se verifică...' : 'Intră în aplicație'}
             </button>
           </form>
         )}
