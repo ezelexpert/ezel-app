@@ -490,8 +490,10 @@ export default function CuratenIePage() {
   }
 
   function renderSpalatorie() {
-    const seturiAuto = totalSeturiAzi
-    const kgAuto = totalKgAzi
+    const seturiCasandra = lenjeriiCasandra.reduce((s,c) => s + c.nr_seturi, 0)
+const kgCasandra = lenjeriiCasandra.reduce((s,c) => s + c.total_kg, 0)
+const seturiAuto = totalSeturiAzi + seturiCasandra
+const kgAuto = Math.round((totalKgAzi + kgCasandra) * 10) / 10
     const seturiFinale = parseInt(inputSeturi) || seturiAuto
     const kgFinale = parseFloat(inputKg) || kgAuto
     return (
@@ -501,11 +503,11 @@ export default function CuratenIePage() {
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
             <div style={{ background:'#fff', borderRadius:8, padding:'10px 12px', textAlign:'center' }}>
               <div style={{ fontSize:24, fontWeight:700, color:'#1F3864' }}>{seturiAuto}</div>
-              <div style={{ fontSize:11, color:'#888' }}>seturi lenjerie</div>
+<div style={{ fontSize:11, color:'#888' }}>seturi lenjerie{seturiCasandra>0?` (incl. ${seturiCasandra} Casandra)`:''}</div>
             </div>
             <div style={{ background:'#fff', borderRadius:8, padding:'10px 12px', textAlign:'center' }}>
-              <div style={{ fontSize:24, fontWeight:700, color:'#1F3864' }}>{kgAuto} kg</div>
-              <div style={{ fontSize:11, color:'#888' }}>total de spălat</div>
+             <div style={{ fontSize:24, fontWeight:700, color:'#1F3864' }}>{kgAuto} kg</div>
+<div style={{ fontSize:11, color:'#888' }}>total de spălat{kgCasandra>0?` (incl. ${kgCasandra}kg Casandra)`:''}</div>
             </div>
           </div>
         </div>
