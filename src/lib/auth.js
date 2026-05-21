@@ -129,3 +129,15 @@ export default function LoginPage() {
     </div>
   )
 }
+export function getSession() {
+  try {
+    const role  = localStorage.getItem('ezel_role')
+    const date  = localStorage.getItem('ezel_date')
+    const token = localStorage.getItem('ezel_token')
+    const today = new Date().toISOString().split('T')[0]
+    if (role && date === today && token === btoa(`${role}_${today}_EZEL`)) {
+      return { role }
+    }
+  } catch(e) {}
+  return null
+}
