@@ -103,6 +103,35 @@ export default function AdminPage() {
     setLoading(true)
     try {
       const [a, c, i] = await Promise.all([getApartamente(), getCuratenie(), getIstoric()])
+      const aziStr = new Date().toISOString().split('T')[0]
+      const in5Zile = new Date(); in5Zile.setDate(in5Zile.getDate() + 5)
+      const in5ZileStr = in5Zile.toISOString().split('T')[0]
+
+      // Auto elib cu 5 zile inainte
+      for (const apt of a.filter(x => x.status==='activ' && x.data_elib && x.data_elib >= aziStr && x.data_elib <= in5ZileStr)) {
+        await updateApartament(apt.nr, { status: 'elib' })
+        const idx = a.findIndex(x => x.nr === apt.nr); if(idx>=0) a[idx].status = 'elib'
+      }
+
+      // Auto liber daca data_elib a trecut
+      const deLiberat = a.filter(apt => apt.status==='elib' && apt.data_elib && apt.data_elib < aziStr)
+      if (deLiberat.length > 0) {
+        const rf = { status:'liber', firma:'', nota:'', data_elib:'', pret:0, pret_utilitati:0, tip_serviciu:'cazare', utilitati_tip:'fix' }
+        for (const apt of deLiberat) await updateApartament(apt.nr, rf)
+        deLiberat.forEach(apt => { const idx = a.findIndex(x => x.nr===apt.nr); if(idx>=0) Object.assign(a[idx], rf) })
+      }
+
+      // In ziua eliberarii cu curatenie finalizata azi -> trece la liber
+      const deTrecLaLiber = a.filter(apt =>
+        apt.status === 'elib' && apt.data_elib === aziStr &&
+        c.some(cur => cur.nr_apt === apt.nr && cur.status_curatenie === 'finalizata' && cur.data_programata === aziStr)
+      )
+      if (deTrecLaLiber.length > 0) {
+        const rf = { status:'liber', firma:'', nota:'', data_elib:'', pret:0, pret_utilitati:0, tip_serviciu:'cazare', utilitati_tip:'fix' }
+        for (const apt of deTrecLaLiber) await updateApartament(apt.nr, rf)
+        deTrecLaLiber.forEach(apt => { const idx = a.findIndex(x => x.nr===apt.nr); if(idx>=0) Object.assign(a[idx], rf) })
+      }
+
       setApts(a); setCuratenii(c); setIstoric(i)
     } catch(e) { console.error(e) }
     setLoading(false)
@@ -211,6 +240,18 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
             setApts(prev => prev.map(a => a.firma === similar.firma && a.nr !== nr ? { ...a, firma: similar.firma } : a))
           }
         }
+      }
+    }
+
+    // Actualizeaza nota si prosop pentru toate apartamentele aceleiasi firme
+    if (fields.firma && fields.firma.trim() && (fields.nota || fields.prosop !== undefined)) {
+      const aceeasi = apts.filter(a => a.firma === fields.firma && a.nr !== nr)
+      const updateFields = {}
+      if (fields.nota) updateFields.nota = fields.nota
+      if (fields.prosop !== undefined) updateFields.prosop = fields.prosop
+      if (aceeasi.length > 0 && Object.keys(updateFields).length > 0) {
+        await updateApartamenteMultiple(aceeasi.map(a => a.nr), updateFields)
+        setApts(prev => prev.map(a => a.firma === fields.firma && a.nr !== nr ? { ...a, ...updateFields } : a))
       }
     }
 
@@ -348,113 +389,64 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
           <div style={{ fontSize: 15, fontWeight: 700 }}>EZEL — Manager</div>
           <div style={{ fontSize: 11, opacity: .7 }}>{new Date().toLocaleDateString('ro-RO', { weekday: 'long', day: 'numeric', month: 'long' })} · {getNume()}</div>
         </div>
-        <button onClick={() => setOpenDropdown('mobile')}
-          style={{ background:'rgba(255,255,255,.18)', border:'1px solid rgba(255,255,255,.3)', color:'#fff', borderRadius:7, padding:'5px 10px', cursor:'pointer', fontSize:18, lineHeight:1, display:'none' }}
-          className="hamburger-btn">☰</button>
         <button className="btn" style={{ background: 'rgba(255,255,255,.18)', border: '1px solid rgba(255,255,255,.3)', color: '#fff', fontSize: 12 }} onClick={handleLogout}>Ieși</button>
       </div>
 
-      {/* Navigare cu dropdown + hamburger mobil */}
-      <div style={{ background: '#fff', borderBottom: '1.5px solid #e0e0e0', position: 'relative', zIndex: 40 }}>
-        {/* Desktop nav */}
-        <div style={{ padding: '0 12px', display: 'flex', gap: 2 }}
-          onMouseLeave={() => setOpenDropdown(null)}>
-          {NAV_GROUPS.map(group => {
-            const isActive = group.single
-              ? tab === group.tab
-              : group.items?.some(i => i.tab === tab)
-            return (
-              <div key={group.key} style={{ position: 'relative' }}
-                onMouseEnter={() => !group.single && setOpenDropdown(group.key)}>
-                <div
-                  onClick={() => {
-                    if (group.single) { setTab(group.tab); setOpenDropdown(null) }
-                    else setOpenDropdown(openDropdown === group.key ? null : group.key)
-                  }}
-                  style={{
-                    padding: '11px 10px', fontSize: 12, cursor: 'pointer', fontWeight: 600,
-                    color: isActive ? '#1F3864' : '#555',
-                    borderBottom: `2.5px solid ${isActive ? '#1F3864' : 'transparent'}`,
-                    display: 'flex', alignItems: 'center', gap: 3, userSelect: 'none',
-                    whiteSpace: 'nowrap'
-                  }}>
-                  {group.label}
-                  {!group.single && <span style={{ fontSize: 9, opacity: .6 }}>{openDropdown === group.key ? '▲' : '▼'}</span>}
-                </div>
-                {!group.single && openDropdown === group.key && (
-                  <div style={{
-                    position: 'absolute', top: '100%', left: 0, minWidth: 180,
-                    background: '#fff', borderRadius: '0 8px 8px 8px',
-                    boxShadow: '0 8px 24px rgba(0,0,0,.12)', border: '1px solid #e8e8e8',
-                    zIndex: 100, overflow: 'hidden'
-                  }}>
-                    {group.items.map(item => (
-                      <div key={item.tab}
-                        onClick={() => { setTab(item.tab); setOpenDropdown(null) }}
-                        style={{
-                          padding: '10px 16px', fontSize: 13, cursor: 'pointer',
-                          background: tab === item.tab ? '#EBF1FB' : '#fff',
-                          color: tab === item.tab ? '#1F3864' : '#333',
-                          fontWeight: tab === item.tab ? 600 : 400,
-                          borderLeft: tab === item.tab ? '3px solid #1F3864' : '3px solid transparent',
-                        }}
-                        onMouseEnter={e => { if(tab !== item.tab) e.currentTarget.style.background = '#f5f7fa' }}
-                        onMouseLeave={e => { if(tab !== item.tab) e.currentTarget.style.background = '#fff' }}>
-                        {item.label}
-                      </div>
-                    ))}
-                  </div>
-                )}
+      {/* Navigare cu dropdown */}
+      <div style={{ background: '#fff', borderBottom: '1.5px solid #e0e0e0', padding: '0 12px', display: 'flex', gap: 2, position: 'relative', zIndex: 40 }}
+        onMouseLeave={() => setOpenDropdown(null)}>
+        {NAV_GROUPS.map(group => {
+          const isActive = group.single
+            ? tab === group.tab
+            : group.items?.some(i => i.tab === tab)
+          return (
+            <div key={group.key} style={{ position: 'relative' }}
+              onMouseEnter={() => !group.single && setOpenDropdown(group.key)}>
+              <div
+                onClick={() => {
+                  if (group.single) { setTab(group.tab); setOpenDropdown(null) }
+                  else setOpenDropdown(openDropdown === group.key ? null : group.key)
+                }}
+                style={{
+                  padding: '11px 14px', fontSize: 13, cursor: 'pointer', fontWeight: 600,
+                  color: isActive ? '#1F3864' : '#555',
+                  borderBottom: `2.5px solid ${isActive ? '#1F3864' : 'transparent'}`,
+                  display: 'flex', alignItems: 'center', gap: 4, userSelect: 'none',
+                  whiteSpace: 'nowrap'
+                }}>
+                {group.label}
+                {!group.single && <span style={{ fontSize: 9, opacity: .6 }}>{openDropdown === group.key ? '▲' : '▼'}</span>}
               </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Meniu mobil - expandabil */}
-      {openDropdown === 'mobile' && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.4)', zIndex:150 }}
-          onClick={() => setOpenDropdown(null)}>
-          <div style={{ position:'absolute', top:0, right:0, width:260, height:'100%', background:'#fff', boxShadow:'-4px 0 20px rgba(0,0,0,.15)', overflowY:'auto' }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ background:'#1F3864', padding:'16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-              <div style={{ color:'#fff', fontWeight:700, fontSize:15 }}>EZEL</div>
-              <button onClick={() => setOpenDropdown(null)}
-                style={{ background:'none', border:'none', color:'#fff', fontSize:20, cursor:'pointer' }}>✕</button>
-            </div>
-            {NAV_GROUPS.map(group => (
-              <div key={group.key}>
-                {group.single ? (
-                  <div onClick={() => { setTab(group.tab); setOpenDropdown(null) }}
-                    style={{ padding:'13px 16px', cursor:'pointer', fontSize:14, fontWeight:600,
-                      background: tab===group.tab?'#EBF1FB':'#fff',
-                      color: tab===group.tab?'#1F3864':'#333',
-                      borderBottom:'1px solid #f0f0f0' }}>
-                    {group.label}
-                  </div>
-                ) : (
-                  <>
-                    <div style={{ padding:'10px 16px 5px', fontSize:11, fontWeight:700, color:'#aaa', letterSpacing:1, textTransform:'uppercase', background:'#f8f9fa', borderBottom:'1px solid #eee' }}>
-                      {group.label}
+              {/* Dropdown */}
+              {!group.single && openDropdown === group.key && (
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, minWidth: 180,
+                  background: '#fff', borderRadius: '0 8px 8px 8px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,.12)', border: '1px solid #e8e8e8',
+                  zIndex: 100, overflow: 'hidden'
+                }}>
+                  {group.items.map(item => (
+                    <div key={item.tab}
+                      onClick={() => { setTab(item.tab); setOpenDropdown(null) }}
+                      style={{
+                        padding: '10px 16px', fontSize: 13, cursor: 'pointer',
+                        background: tab === item.tab ? '#EBF1FB' : '#fff',
+                        color: tab === item.tab ? '#1F3864' : '#333',
+                        fontWeight: tab === item.tab ? 600 : 400,
+                        borderLeft: tab === item.tab ? '3px solid #1F3864' : '3px solid transparent',
+                        transition: 'background .15s'
+                      }}
+                      onMouseEnter={e => { if(tab !== item.tab) e.currentTarget.style.background = '#f5f7fa' }}
+                      onMouseLeave={e => { if(tab !== item.tab) e.currentTarget.style.background = '#fff' }}>
+                      {item.label}
                     </div>
-                    {group.items.map(item => (
-                      <div key={item.tab} onClick={() => { setTab(item.tab); setOpenDropdown(null) }}
-                        style={{ padding:'11px 20px', cursor:'pointer', fontSize:13,
-                          background: tab===item.tab?'#EBF1FB':'#fff',
-                          color: tab===item.tab?'#1F3864':'#333',
-                          fontWeight: tab===item.tab?600:400,
-                          borderLeft: tab===item.tab?'3px solid #1F3864':'3px solid transparent',
-                          borderBottom:'1px solid #f5f5f5' }}>
-                        {item.label}
-                      </div>
-                    ))}
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
 
       <div style={{ padding: 12, maxWidth: 1200, margin: '0 auto' }}>
 
@@ -535,7 +527,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
             <table className="tbl">
               <thead><tr>
                 <th><input type="checkbox" onChange={e => { if(e.target.checked) setSelApts(new Set(filteredApts.map(a=>a.nr))); else clearSel() }} /></th>
-                <th>Nr</th><th>Locuri</th><th>Firmă</th><th>Notă</th><th>Status</th><th>Preț</th><th>Ultima cur.</th><th></th>
+                <th>Nr</th><th>Locuri</th><th>Firmă</th><th>Notă</th><th>Status</th><th>Preț</th><th>Ultima cur.</th><th>Urm. cur.</th><th></th>
               </tr></thead>
               <tbody>
                 {filteredApts.map(a => {
@@ -543,7 +535,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
                   const statusLabel = a.status === 'elib' && a.data_elib ? `Elib. ${a.data_elib}` : bl
                   const isDbl = a.tip === 'dublu' || String(a.nr).startsWith('D')
                   return (
-                    <tr key={a.nr} className={selApts.has(a.nr) ? 'sel' : ''}>
+                    <tr key={a.nr} className={selApts.has(a.nr) ? 'sel' : ''} style={{ background: a.status==='liber' ? 'rgba(194,239,178,0.25)' : undefined }}>
                       <td><input type="checkbox" checked={selApts.has(a.nr)} onChange={() => toggleSel(a.nr)} /></td>
                       <td><strong>{a.nr}</strong>{isDbl && <span className="tip-d">2x</span>}</td>
                       <td style={{ textAlign:'center' }}>
@@ -555,7 +547,8 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
                       <td style={{ color: '#888', fontSize: 11 }}>{a.nota || '—'}</td>
                       <td><span className={`badge ${bc}`}>{statusLabel}</span></td>
                       <td>{a.pret ? `${a.pret} RON` : '—'}</td>
-                      <td style={{ fontSize: 11, color: '#888' }}>{a.ultima_curatenie || '—'}</td>
+                      <td style={{ fontSize: 11, color: '#888' }}>{a.ultima_curatenie ? a.ultima_curatenie.split(' ')[0] : '—'}</td>
+                      <td style={{ fontSize: 11, color: '#1F3864', fontWeight:500 }}>{(() => { const urm = curatenii.filter(c => c.nr_apt===a.nr && c.status_curatenie!=='finalizata').sort((x,y)=>x.data_programata>y.data_programata?1:-1)[0]; return urm ? urm.data_programata : '—' })()}</td>
                       <td><button className="btn" style={{ height: 24, fontSize: 11 }} onClick={() => { setEditData({ ...a }); setModal('editApt') }}>✏️</button></td>
                     </tr>
                   )
@@ -695,20 +688,17 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
       {modal === 'editApt' && (
         <Modal title={`Editează AP ${editData.nr}`} onClose={() => setModal(null)}>
           <div className="fg"><label className="fl">Firmă</label>
-            <input className="fi" value={editData.firma||''} onChange={e => setEditData({...editData, firma: e.target.value})}
-  onBlur={e => {
-    const val = e.target.value.trim()
-    if (!val) return
-    const firmeExistente = [...new Set(apts.filter(a => a.firma && a.nr !== editData.nr).map(a => a.firma))]
-    const similar = gasesteFirmaSimilara(val, firmeExistente, 0.5)
-    if (similar && similar.firma.toLowerCase() !== val.toLowerCase()) {
-      const ok = window.confirm(`Ai scris "${val}". Am găsit firma similară "${similar.firma}" (${Math.round(similar.score*100)}% potrivire).\n\nFolosești "${similar.firma}"?`)
-      if (ok) setEditData(prev => ({...prev, firma: similar.firma}))
-    }
-  }} />
+            <input className="fi" value={editData.firma||''} onChange={e => setEditData({...editData, firma: e.target.value})} />
           </div>
-          <div className="fg"><label className="fl">Notă</label>
+          <div className="fg"><label className="fl">Notă (ex: 2c/l)</label>
             <input className="fi" value={editData.nota||''} onChange={e => setEditData({...editData, nota: e.target.value})} />
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', background:'#f8f9fa', borderRadius:8, marginBottom:8, cursor:'pointer' }}
+            onClick={() => setEditData({...editData, prosop: !editData.prosop})}>
+            <div style={{ width:20, height:20, borderRadius:5, border:`2px solid ${editData.prosop?'#1F3864':'#ddd'}`, background:editData.prosop?'#1F3864':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              {editData.prosop && <span style={{ color:'#fff', fontSize:13 }}>✓</span>}
+            </div>
+            <span style={{ fontSize:13, fontWeight:500, color:'#333' }}>🛁 Prosop inclus</span>
           </div>
           <div className="r2">
             <div className="fg"><label className="fl">Status</label>
