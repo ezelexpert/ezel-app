@@ -79,6 +79,7 @@ export default function CuratenIePage() {
 
   // Spalatorie
   const [spalLoading, setSpalLoading] = useState(false)
+  const [lenjeriiCasandra, setLenjeriiCasandra] = useState([])
   const [inputSeturi, setInputSeturi] = useState('')
   const [inputKg, setInputKg] = useState('')
   const [toateGata, setToateGata] = useState(false)
@@ -106,6 +107,15 @@ export default function CuratenIePage() {
   const nume = getNume()
 
   useEffect(() => { load(); loadPontaj() }, [])
+
+  useEffect(() => {
+    if (tab === 2) {
+      // Incarca lenjerii Casandra cand se deschide tab spalatorie
+      const today = getToday()
+      supabase.from('lenjerii_comenzi').select('*').eq('data_livrare', today).eq('status', 'asteptare')
+        .then(({ data }) => setLenjeriiCasandra(data || []))
+    }
+  }, [tab])
 
   async function load() {
     setLoading(true)
@@ -507,6 +517,43 @@ export default function CuratenIePage() {
             style={{ width:'100%', padding:'12px', background:spalSaved?'#375623':'#1F3864', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:600, cursor:'pointer' }}>
             {spalLoading ? 'Se salvează...' : spalSaved ? '✅ Salvat!' : '💾 Salvează raportul de azi'}
           </button>
+        </div>
+
+        {/* Tabel lenjerii alte locatii - Casandra */}
+        <div style={{ background:'#fff', border:'1px solid #e8e8e8', borderRadius:12, padding:'14px 16px', marginTop:12 }}>
+          <div style={{ fontSize:13, fontWeight:700, color:'#4527A0', marginBottom:10 }}>🧺 Lenjerii din alte locații</div>
+          {lenjeriiCasandra.length === 0 ? (
+            <div style={{ textAlign:'center', padding:'14px', color:'#bbb', fontSize:12 }}>
+              Nicio livrare programată pentru azi de la Casandra.
+            </div>
+          ) : (
+            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+              <thead>
+                <tr style={{ background:'#f8f9fa' }}>
+                  <th style={{ padding:'6px 8px', textAlign:'left', color:'#666', fontWeight:600, borderBottom:'1.5px solid #eee' }}>Locație</th>
+                  <th style={{ padding:'6px 8px', textAlign:'center', color:'#666', fontWeight:600, borderBottom:'1.5px solid #eee' }}>Seturi</th>
+                  <th style={{ padding:'6px 8px', textAlign:'center', color:'#666', fontWeight:600, borderBottom:'1.5px solid #eee' }}>Kg</th>
+                  <th style={{ padding:'6px 8px', textAlign:'left', color:'#666', fontWeight:600, borderBottom:'1.5px solid #eee' }}>Obs.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lenjeriiCasandra.map(c => (
+                  <tr key={c.id}>
+                    <td style={{ padding:'6px 8px', borderBottom:'1px solid #f0f0f0', fontWeight:600 }}>📍 {c.locatie}</td>
+                    <td style={{ padding:'6px 8px', borderBottom:'1px solid #f0f0f0', textAlign:'center', fontWeight:700, color:'#4527A0' }}>{c.nr_seturi}</td>
+                    <td style={{ padding:'6px 8px', borderBottom:'1px solid #f0f0f0', textAlign:'center', fontWeight:700, color:'#4527A0' }}>{c.total_kg} kg</td>
+                    <td style={{ padding:'6px 8px', borderBottom:'1px solid #f0f0f0', fontSize:11, color:'#888' }}>{c.observatii||'—'}</td>
+                  </tr>
+                ))}
+                <tr style={{ background:'#EDE7F6' }}>
+                  <td style={{ padding:'6px 8px', fontWeight:700, color:'#4527A0' }}>TOTAL</td>
+                  <td style={{ padding:'6px 8px', textAlign:'center', fontWeight:700, color:'#4527A0' }}>{lenjeriiCasandra.reduce((s,c)=>s+c.nr_seturi,0)}</td>
+                  <td style={{ padding:'6px 8px', textAlign:'center', fontWeight:700, color:'#4527A0' }}>{Math.round(lenjeriiCasandra.reduce((s,c)=>s+c.total_kg,0)*10)/10} kg</td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     )
