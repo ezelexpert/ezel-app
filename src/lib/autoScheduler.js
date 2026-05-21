@@ -1,23 +1,25 @@
 import { supabase } from './supabase'
 
 const MAX_PER_ZI = 12
-const ZILE_IDEAL = 7
-const ZILE_MAX = 10
 const ELM_FIRME = ['elm', 'electromontaj']
 
-function isELM(firma) {
-  if (!firma) return false
-  return ELM_FIRME.some(f => firma.toLowerCase().includes(f))
-}
-
+// ── Utilitare date ────────────────────────────────────────────
 function dateStr(d) {
   return d.getFullYear() + '-' +
     String(d.getMonth() + 1).padStart(2, '0') + '-' +
     String(d.getDate()).padStart(2, '0')
 }
 
+function parseDate(str) {
+  if (!str) return null
+  const d = new Date(str + 'T12:00:00')
+  return isNaN(d) ? null : d
+}
+
 function addZile(d, n) {
-  const r = new Date(d); r.setDate(r.getDate() + n); return r
+  const r = new Date(d)
+  r.setDate(r.getDate() + n)
+  return r
 }
 
 function diffZile(d1, d2) {
@@ -26,325 +28,398 @@ function diffZile(d1, d2) {
   return Math.round((b - a) / 86400000)
 }
 
-function isLuniSauVineri(d) {
-  const zi = d.getDay(); return zi === 1 || zi === 5
+// Verifica daca e zi lucratoare (luni-vineri)
+function isLucratoare(d) {
+  const zi = d.getDay()
+  return zi >= 1 && zi <= 5
 }
 
-function zileSaptamana(luni) {
-  const zile = []
-  for (let i = 0; i < 5; i++) zile.push(addZile(luni, i))
-  return zile
+// Returneaza urmatoarea zi lucratoare (inclusiv ziua data daca e lucratoare)
+function urmatoareaZiLucratoare(d) {
+  const r = new Date(d)
+  r.setHours(0,0,0,0)
+  while (!isLucratoare(r)) r.setDate(r.getDate() + 1)
+  return r
 }
 
-function luniSaptamanaViitoare() {
-  const azi = new Date(); azi.setHours(0,0,0,0)
-  const ziAzi = azi.getDay()
-  const paneLuni = ziAzi === 0 ? 1 : (8 - ziAzi)
-  return addZile(azi, paneLuni)
+// Cea mai apropiata zi luni sau vineri
+function celMaiApropiataLuniSauVineri(d) {
+  const r = new Date(d)
+  r.setHours(0,0,0,0)
+  const zi = r.getDay()
+  // Distante pana la luni (1) si vineri (5)
+  const paneLuni = zi <= 1 ? 1 - zi : 8 - zi
+  const paneVineri = zi <= 5 ? 5 - zi : 12 - zi
+  if (paneLuni <= paneVineri) {
+    return addZile(r, paneLuni)
+  } else {
+    return addZile(r, paneVineri)
+  }
 }
 
-// Parseaza nota pentru frecventa curatenie
-// Exemple: "2c/l", "1c/l", "2 c/l", "2C/L", "2cl", "1c/s" (saptamanal)
+function isELM(firma) {
+  if (!firma) return false
+  return ELM_FIRME.some(f => firma.toLowerCase().includes(f))
+}
+
+// Parseaza nota c/l: "2c/l", "1c/l", "2 C/L" etc
 function parseazaNota(nota) {
   if (!nota) return null
   const normalized = nota.toLowerCase().replace(/\s/g, '')
-  // Pattern: numar + c + / + l (lunar) sau s (saptamanal)
-  const match = normalized.match(/(\d+)c\/?([ls])/)
+  const match = normalized.match(/(\d+)c\/?l/)
   if (!match) return null
   const nr = parseInt(match[1])
-  const tip = match[2] // 'l' = lunar, 's' = saptamanal
-  if (isNaN(nr) || nr <= 0) return null
-  return { nr, tip } // { nr: 2, tip: 'l' } = 2 pe luna
+  return isNaN(nr) || nr <= 0 ? null : nr // nr curatenii pe luna
 }
 
+// ── Functia principala ────────────────────────────────────────
 export async function genereazaSaptamana() {
   try {
-    const luni = luniSaptamanaViitoare()
+    const azi = new Date(); azi.setHours(0,0,0,0)
+    const aziStr = dateStr(azi)
+
+    // Saptamana viitoare luni-vineri
+    const ziAzi = azi.getDay()
+    const paneLuni = ziAzi === 0 ? 1 : (8 - ziAzi)
+    const luni = addZile(azi, paneLuni)
     const vineri = addZile(luni, 4)
     const luniStr = dateStr(luni)
     const vineriStr = dateStr(vineri)
-    const azi = new Date(); azi.setHours(0,0,0,0)
 
-    // Luna curenta pentru calcul c/l
-    const lunaStart = new Date(luni.getFullYear(), luni.getMonth(), 1)
-    const lunaEnd = new Date(luni.getFullYear(), luni.getMonth() + 1, 0)
-    const lunaStartStr = dateStr(lunaStart)
-    const lunaEndStr = dateStr(lunaEnd)
+    console.log(`[Scheduler] Generez ${luniStr} - ${vineriStr}`)
 
-    console.log(`[AutoScheduler] Generez ${luniStr} - ${vineriStr}`)
+    // Ia toate apartamentele ocupate sau care elibereaza
+    const { data: apts } = await supabase
+      .from('apartamente')
+      .select('*')
+      .in('status', ['activ', 'elib'])
 
-    const { data: apts } = await supabase.from('apartamente').select('*').in('status', ['activ', 'elib'])
-    if (!apts || apts.length === 0) return { programate: 0, skipped: 0 }
+    if (!apts?.length) return { programate: 0, skipped: 0 }
 
-    const { data: existente } = await supabase.from('curatenie').select('*')
-      .gte('data_programata', dateStr(azi)).neq('status_curatenie', 'finalizata')
+    // Ia toate curateniile existente viitoare (neprogramate/programate)
+    const { data: existente } = await supabase
+      .from('curatenie')
+      .select('*')
+      .gte('data_programata', aziStr)
+      .neq('status_curatenie', 'finalizata')
 
-    const deja = {}
-    ;(existente || []).forEach(c => {
-      if (!deja[c.nr_apt]) deja[c.nr_apt] = []
-      deja[c.nr_apt].push(c.data_programata)
-    })
-
-    const deSchedulat = []
-    const deProgramat = []
-    let programate = 0, skipped = 0
-
-    // ── STEP 1: Apartamente cu nota c/l ──────────────────────
-    for (const apt of apts) {
-      const frecventa = parseazaNota(apt.nota)
-      if (!frecventa) continue
-
-      // Curatenii deja facute/programate in luna saptamanii viitoare
-      const { data: curLuna } = await supabase.from('curatenie').select('data_programata')
-        .eq('nr_apt', apt.nr)
-        .gte('data_programata', lunaStartStr)
-        .lte('data_programata', lunaEndStr)
-
-      const nrFacuteLuna = curLuna?.length || 0
-
-      let targetLuna
-      if (frecventa.tip === 's') {
-        // Saptamanal - cate saptamani sunt in luna viitoare
-        const saptInLuna = Math.ceil((lunaEnd.getDate()) / 7)
-        targetLuna = frecventa.nr * saptInLuna
-      } else {
-        targetLuna = frecventa.nr
-      }
-
-      const ramas = targetLuna - nrFacuteLuna
-      if (ramas <= 0) { skipped++; continue }
-
-      // Distribuie ramas curatenii in saptamana viitoare
-      for (let i = 0; i < ramas; i++) {
-        deSchedulat.push({
-          apt,
-          targetDate: addZile(luni, Math.floor(i * 5 / ramas)),
-          urgenta: false,
-          isElm: isELM(apt.firma),
-          zileTrecute: 0,
-          fromNota: true
-        })
-      }
-    }
-
-    // ── STEP 2: Apartamente fara nota - logica 7-10 zile ─────
-    for (const apt of apts) {
-      if (parseazaNota(apt.nota)) continue // deja procesat mai sus
-
-      const { data: ultimele } = await supabase.from('curatenie').select('data_programata')
-        .eq('nr_apt', apt.nr).eq('status_curatenie', 'finalizata')
-        .order('data_programata', { ascending: false }).limit(1)
-
-      const ultimaData = ultimele?.[0]?.data_programata
-        ? new Date(ultimele[0].data_programata) : new Date(azi)
-      ultimaData.setHours(0,0,0,0)
-
-      const zileTrecute = diffZile(ultimaData, azi)
-      const zileRamase = ZILE_IDEAL - zileTrecute
-      const zileMaxRamase = ZILE_MAX - zileTrecute
-
-      const dateViitoare = (deja[apt.nr] || []).filter(d => d >= dateStr(azi))
-      if (dateViitoare.length > 0) {
-        const ceaMaiApropiata = dateViitoare.sort()[0]
-        const zileParaCea = diffZile(azi, ceaMaiApropiata)
-        if (zileTrecute + zileParaCea <= ZILE_MAX) continue
-      }
-
-      let targetOffset = Math.max(0, zileRamase)
-      let urgenta = false
-      if (zileMaxRamase <= 5) { urgenta = true; targetOffset = 0 }
-
-      deSchedulat.push({
-        apt, targetDate: addZile(azi, Math.max(targetOffset, 0)),
-        urgenta, isElm: isELM(apt.firma), zileTrecute, fromNota: false
-      })
-    }
-
-    if (deSchedulat.length === 0) return { programate: 0, skipped }
-
-    deSchedulat.sort((a, b) => {
-      if (a.urgenta !== b.urgenta) return b.urgenta - a.urgenta
-      if (a.isElm !== b.isElm) return b.isElm - a.isElm
-      return b.zileTrecute - a.zileTrecute
-    })
-
-    // ── STEP 3: Distribute uniform ───────────────────────────
-    const zile = zileSaptamana(luni)
+    // Contorizare per zi pentru saptamana viitoare
     const slot = {}
-    zile.forEach(z => { slot[dateStr(z)] = 0 })
+    for (let i = 0; i < 5; i++) {
+      slot[dateStr(addZile(luni, i))] = 0
+    }
+    // Adauga curateniile deja existente in saptamana viitoare
     ;(existente || []).forEach(c => {
       if (c.data_programata >= luniStr && c.data_programata <= vineriStr) {
         if (slot[c.data_programata] !== undefined) slot[c.data_programata]++
       }
     })
 
-    function gasesteCeaMaiLibera(zileDisponibile) {
-      let minCount = Infinity, ziGasita = null
-      for (const z of zileDisponibile) {
-        const ds = dateStr(z)
-        if (slot[ds] < MAX_PER_ZI && slot[ds] < minCount) {
-          minCount = slot[ds]; ziGasita = ds
+    // Map: nr_apt -> ultima curatenie finalizata
+    const ultimaCuratenie = {}
+    const { data: finalizate } = await supabase
+      .from('curatenie')
+      .select('nr_apt, data_programata')
+      .eq('status_curatenie', 'finalizata')
+      .order('data_programata', { ascending: false })
+
+    ;(finalizate || []).forEach(c => {
+      if (!ultimaCuratenie[c.nr_apt]) ultimaCuratenie[c.nr_apt] = c.data_programata
+    })
+
+    // Map: nr_apt -> curatenii deja programate viitoare
+    const programateViitor = {}
+    ;(existente || []).forEach(c => {
+      if (!programateViitor[c.nr_apt]) programateViitor[c.nr_apt] = []
+      programateViitor[c.nr_apt].push(c.data_programata)
+    })
+
+    const deProgramat = []
+    let programate = 0, skipped = 0
+
+    // ── STEP 1: Curățenii generale (apartamente care elibereaza) ──
+    // Prioritate maxima - se pun fix pe data eliberarii, ignora limita
+    for (const apt of apts.filter(a => a.status === 'elib' && a.data_elib)) {
+      const dataElib = parseDate(apt.data_elib)
+      if (!dataElib) continue
+
+      // Doar daca elibereaza in saptamana viitoare
+      if (apt.data_elib < luniStr || apt.data_elib > vineriStr) continue
+
+      // Verifica daca nu are deja curatenie generala programata
+      const areGenerala = (programateViitor[apt.nr] || []).some(d => d === apt.data_elib)
+      if (areGenerala) continue
+
+      // Pune curatenie generala pe data eliberarii - fara limita
+      deProgramat.push({
+        data_programata: apt.data_elib,
+        nr_apt: apt.nr,
+        tip_apt: apt.tip || 'simplu',
+        firma: apt.firma || '',
+        tip_curatenie: 'generala',
+        status_curatenie: 'programata',
+        observatii: 'Auto - eliberare client',
+        amanare_status: ''
+      })
+      if (slot[apt.data_elib] !== undefined) slot[apt.data_elib]++
+      if (!programateViitor[apt.nr]) programateViitor[apt.nr] = []
+      programateViitor[apt.nr].push(apt.data_elib)
+      programate++
+    }
+
+    // ── STEP 2: Calculeaza urmatoarea curatenie pentru fiecare apt ──
+    const deSchedulat = []
+
+    for (const apt of apts) {
+      // Baza de calcul: ultima curatenie finalizata sau data check-in
+      const ultimaFacuta = ultimaCuratenie[apt.nr]
+        ? parseDate(ultimaCuratenie[apt.nr])
+        : apt.data_checkin
+          ? parseDate(apt.data_checkin)
+          : null
+
+      if (!ultimaFacuta) continue
+
+      // Calculeaza urmatoarea curatenie: ultima + 7 zile -> zi lucratoare
+      let urmatoarea = urmatoareaZiLucratoare(addZile(ultimaFacuta, 7))
+
+      // Daca urmatoarea e in trecut -> prima zi lucratoare disponibila din saptamana viitoare
+      if (urmatoarea < luni) {
+        // Cat de tarziu suntem? Daca depaseste 10 zile -> urgent
+        const zileIntarziere = diffZile(urmatoarea, azi)
+        if (zileIntarziere > 3) {
+          urmatoarea = luni // Urgent - prima zi a saptamanii viitoare
+        } else {
+          urmatoarea = urmatoareaZiLucratoare(addZile(ultimaFacuta, 7))
+          if (urmatoarea < luni) urmatoarea = luni
         }
       }
-      return ziGasita
-    }
 
-    // Apartamente cu data_elib in saptamana viitoare -> curatenie generala fix pe data elib
-    for (const apt of apts.filter(a => a.status === 'elib' && a.data_elib >= luniStr && a.data_elib <= vineriStr)) {
-      const areInSapt = (deja[apt.nr] || []).some(d => d >= luniStr && d <= vineriStr)
-      if (areInSapt) continue
-      deProgramat.push({
-        data_programata: apt.data_elib, nr_apt: apt.nr,
-        tip_apt: apt.tip || 'simplu', firma: apt.firma || '',
-        tip_curatenie: 'generala', status_curatenie: 'programata',
-        observatii: 'Auto-generat la eliberare', amanare_status: ''
+      // Verifica daca are deja curatenie programata in intervalul valid (7-10 zile)
+      const areInInterval = (programateViitor[apt.nr] || []).some(d => {
+        const diff = diffZile(ultimaFacuta, parseDate(d))
+        return diff >= 7 && diff <= 14
       })
-      slot[apt.data_elib] = (slot[apt.data_elib] || 0) + 1
-      programate++
-      if (!deja[apt.nr]) deja[apt.nr] = []
-      deja[apt.nr].push(apt.data_elib)
-    }
+      if (areInInterval) { skipped++; continue }
 
-    // ELM - doar luni sau vineri
-    const elmZile = zile.filter(z => isLuniSauVineri(z))
-    for (const item of deSchedulat.filter(x => x.isElm)) {
-      const areInSapt = (deja[item.apt.nr] || []).some(d => d >= luniStr && d <= vineriStr)
-      if (areInSapt && !item.fromNota) { skipped++; continue }
-      const ziGasita = gasesteCeaMaiLibera(elmZile)
-      if (!ziGasita) { skipped++; continue }
-      slot[ziGasita]++
-      deProgramat.push({
-        data_programata: ziGasita, nr_apt: item.apt.nr,
-        tip_apt: item.apt.tip || 'simplu', firma: item.apt.firma || '',
-        tip_curatenie: 'intretinere', status_curatenie: 'programata',
-        observatii: 'Auto-generat (ELM)', amanare_status: ''
+      // Verifica daca urmatoarea e in saptamana viitoare
+      if (urmatoarea < luni || urmatoarea > vineri) { skipped++; continue }
+
+      const nota = parseazaNota(apt.nota)
+      const urgent = diffZile(ultimaFacuta, azi) >= 9 // aproape de ziua 10
+
+      deSchedulat.push({
+        apt,
+        targetDate: urmatoarea,
+        urgent,
+        isElm: isELM(apt.firma),
+        zileDeLaUltima: diffZile(ultimaFacuta, azi)
       })
-      programate++
     }
 
-    // Restul - distributie uniforma
-    const urgent = deSchedulat.filter(x => !x.isElm && x.urgenta)
-    const normal = deSchedulat.filter(x => !x.isElm && !x.urgenta)
-    normal.sort((a, b) => a.targetDate - b.targetDate)
+    // ── STEP 3: Sorteaza si distribuie ──
+    // Ordine: urgent > ELM > normal, in interiorul fiecarei categorii dupa targetDate
+    deSchedulat.sort((a, b) => {
+      if (a.urgent !== b.urgent) return b.urgent - a.urgent
+      if (a.isElm !== b.isElm) return b.isElm - a.isElm
+      return a.targetDate - b.targetDate
+    })
 
-    for (const item of [...urgent, ...normal]) {
-      const areInSapt = (deja[item.apt.nr] || []).some(d => d >= luniStr && d <= vineriStr)
-      if (areInSapt && !item.fromNota) { skipped++; continue }
-      const ziGasita = gasesteCeaMaiLibera(zile)
-      if (!ziGasita) { skipped++; continue }
-      slot[ziGasita]++
+    for (const item of deSchedulat) {
+      let dataFinala
+
+      if (item.isElm) {
+        // ELM: luni sau vineri cea mai apropiata de targetDate
+        const ziElm = celMaiApropiataLuniSauVineri(item.targetDate)
+        // Asigura ca e in saptamana viitoare
+        if (ziElm < luni) {
+          dataFinala = dateStr(luni) // luni saptamana viitoare
+          // Verifica daca luni e luni sau vineri
+          if (luni.getDay() !== 1) dataFinala = dateStr(vineri)
+        } else if (ziElm > vineri) {
+          skipped++; continue
+        } else {
+          dataFinala = dateStr(ziElm)
+        }
+        // ELM depaseste limita
+      } else {
+        // Normal: incearca targetDate, daca e plina gaseste cea mai libera zi
+        const targetStr = dateStr(item.targetDate)
+
+        if (slot[targetStr] !== undefined && slot[targetStr] < MAX_PER_ZI) {
+          dataFinala = targetStr
+        } else {
+          // Gaseste ziua cea mai libera din saptamana viitoare
+          let minSlot = Infinity, ziGasita = null
+          for (let i = 0; i < 5; i++) {
+            const d = dateStr(addZile(luni, i))
+            if (slot[d] < MAX_PER_ZI && slot[d] < minSlot) {
+              minSlot = slot[d]
+              ziGasita = d
+            }
+          }
+          if (!ziGasita) { skipped++; continue }
+          dataFinala = ziGasita
+        }
+      }
+
+      if (slot[dataFinala] !== undefined) slot[dataFinala]++
       deProgramat.push({
-        data_programata: ziGasita, nr_apt: item.apt.nr,
-        tip_apt: item.apt.tip || 'simplu', firma: item.apt.firma || '',
-        tip_curatenie: 'intretinere', status_curatenie: 'programata',
-        observatii: item.urgenta ? 'Auto-generat (urgent)' : item.fromNota ? `Auto-generat (${item.apt.nota})` : 'Auto-generat',
+        data_programata: dataFinala,
+        nr_apt: item.apt.nr,
+        tip_apt: item.apt.tip || 'simplu',
+        firma: item.apt.firma || '',
+        tip_curatenie: 'intretinere',
+        status_curatenie: 'programata',
+        observatii: item.urgent ? 'Auto (urgent)' : item.isElm ? 'Auto (ELM)' : 'Auto',
         amanare_status: ''
       })
       programate++
     }
 
+    // ── STEP 4: Salveaza in Supabase ──
     if (deProgramat.length > 0) {
       const { error } = await supabase.from('curatenie').insert(deProgramat)
-      if (error) { console.error('[AutoScheduler] Eroare:', error); return { programate: 0, skipped, error } }
+      if (error) { console.error('[Scheduler] Eroare insert:', error); return { programate: 0, skipped, error } }
+
+      // Update curatenie_status
       const nruri = [...new Set(deProgramat.map(c => c.nr_apt))]
       await supabase.from('apartamente').update({ curatenie_status: 'programata' }).in('nr', nruri)
+
+      // Log
       await supabase.from('log_actiuni').insert({
-        user_tip: 'admin', actiune: 'Auto-programare saptamana',
-        nr_apt: nruri.join(','),
+        user_tip: 'admin',
+        actiune: 'Auto-programare saptamana',
         detalii: `${programate} curatenii pentru ${luniStr}-${vineriStr}`
       })
     }
 
-    console.log(`[AutoScheduler] Programat: ${programate}, Sarit: ${skipped}`)
+    console.log(`[Scheduler] Programat: ${programate}, Sarit: ${skipped}`)
+    console.log('[Scheduler] Distributie:', slot)
     return { programate, skipped, distributie: slot }
+
   } catch(e) {
-    console.error('[AutoScheduler] Eroare:', e)
+    console.error('[Scheduler] Eroare:', e)
     return { programate: 0, skipped: 0, error: e.message }
   }
 }
 
-// Programeaza curatenia pe 15 ale lunii curente pentru luna viitoare
+// ── Programare luna viitoare (dupa 15 ale lunii) ─────────────
 export async function programeazaLunaViitoare() {
   try {
-    const azi = new Date()
+    const azi = new Date(); azi.setHours(0,0,0,0)
     const lunaViitoare = new Date(azi.getFullYear(), azi.getMonth() + 1, 1)
     const lunaVStr = lunaViitoare.getFullYear() + '-' + String(lunaViitoare.getMonth()+1).padStart(2,'0')
+    const ultimaZiLuna = new Date(lunaViitoare.getFullYear(), lunaViitoare.getMonth() + 1, 0).getDate()
 
     const { data: apts } = await supabase.from('apartamente').select('*').in('status', ['activ', 'elib'])
     if (!apts?.length) return { programate: 0 }
 
-    let programate = 0
+    // Ia curateniile deja existente luna viitoare
+    const { data: existente } = await supabase.from('curatenie').select('*')
+      .gte('data_programata', `${lunaVStr}-01`)
+      .lte('data_programata', `${lunaVStr}-${ultimaZiLuna}`)
+
+    const existentePerApt = {}
+    ;(existente || []).forEach(c => {
+      if (!existentePerApt[c.nr_apt]) existentePerApt[c.nr_apt] = []
+      existentePerApt[c.nr_apt].push(c.data_programata)
+    })
+
+    // Ia ultima curatenie finalizata per apartament
+    const { data: finalizate } = await supabase.from('curatenie').select('nr_apt, data_programata')
+      .eq('status_curatenie', 'finalizata').order('data_programata', { ascending: false })
+
+    const ultimaCuratenie = {}
+    ;(finalizate || []).forEach(c => {
+      if (!ultimaCuratenie[c.nr_apt]) ultimaCuratenie[c.nr_apt] = c.data_programata
+    })
+
     const deProgramat = []
+    let programate = 0
 
     for (const apt of apts) {
-      const frecventa = parseazaNota(apt.nota)
-      if (!frecventa) continue
+      const nrPerLuna = parseazaNota(apt.nota)
+      if (!nrPerLuna) continue
 
-      // Verifica cate sunt deja programate luna viitoare
-      const { data: existente } = await supabase.from('curatenie').select('id')
-        .eq('nr_apt', apt.nr)
-        .gte('data_programata', lunaVStr + '-01')
-        .lte('data_programata', lunaVStr + '-31')
-
-      const nrExistente = existente?.length || 0
-      const targetNr = frecventa.tip === 's' ? frecventa.nr * 4 : frecventa.nr
-      const ramas = targetNr - nrExistente
+      // Cate are deja programate luna viitoare
+      const nrExistente = (existentePerApt[apt.nr] || []).length
+      const ramas = nrPerLuna - nrExistente
       if (ramas <= 0) continue
 
-      // Distribuie uniform in luna viitoare
-      const zileleLunii = new Date(lunaViitoare.getFullYear(), lunaViitoare.getMonth() + 1, 0).getDate()
-      const interval = Math.floor(zileleLunii / targetNr)
+      // Baza de calcul: ultima curatenie sau check-in
+      let baza = ultimaCuratenie[apt.nr]
+        ? parseDate(ultimaCuratenie[apt.nr])
+        : apt.data_checkin ? parseDate(apt.data_checkin) : new Date(lunaViitoare)
+
+      // Calculeaza datele pentru luna viitoare
+      // Prima curatenie: baza + 7 zile, daca e in luna viitoare
+      // Urmatoarele: fiecare la +7 zile
+      let cursor = urmatoareaZiLucratoare(addZile(baza, 7))
+
+      // Daca cursor e inainte de luna viitoare, avanseaza
+      while (cursor < lunaViitoare) cursor = urmatoareaZiLucratoare(addZile(cursor, 7))
 
       for (let i = 0; i < ramas; i++) {
-        const zi = Math.min(1 + (nrExistente + i) * interval, zileleLunii)
-        const dataStr = lunaVStr + '-' + String(zi).padStart(2, '0')
-        // Skip weekends
-        const dow = new Date(dataStr).getDay()
-        const dataFinal = dow === 0 ? lunaVStr + '-' + String(Math.min(zi+1, zileleLunii)).padStart(2,'0') :
-                          dow === 6 ? lunaVStr + '-' + String(Math.max(zi-1, 1)).padStart(2,'0') : dataStr
+        if (cursor > new Date(lunaViitoare.getFullYear(), lunaViitoare.getMonth() + 1, 0)) break
 
-        const isElm = isELM(apt.firma)
-        if (isElm) {
-          // ELM doar luni sau vineri - gaseste cea mai apropiata
-          const d = new Date(dataFinal)
-          while (d.getDay() !== 1 && d.getDay() !== 5) d.setDate(d.getDate() + 1)
-          deProgramat.push({ data_programata: dateStr(d), nr_apt: apt.nr, tip_apt: apt.tip||'simplu', firma: apt.firma||'', tip_curatenie:'intretinere', status_curatenie:'programata', observatii:`Auto ${lunaVStr} (${apt.nota})`, amanare_status:'' })
-        } else {
-          deProgramat.push({ data_programata: dataFinal, nr_apt: apt.nr, tip_apt: apt.tip||'simplu', firma: apt.firma||'', tip_curatenie:'intretinere', status_curatenie:'programata', observatii:`Auto ${lunaVStr} (${apt.nota})`, amanare_status:'' })
+        const dataStr2 = dateStr(cursor)
+
+        // ELM: ajusteaza la luni/vineri
+        let dataFinala = dataStr2
+        if (isELM(apt.firma)) {
+          const adjusted = celMaiApropiataLuniSauVineri(cursor)
+          dataFinala = dateStr(adjusted)
         }
+
+        deProgramat.push({
+          data_programata: dataFinala,
+          nr_apt: apt.nr,
+          tip_apt: apt.tip || 'simplu',
+          firma: apt.firma || '',
+          tip_curatenie: 'intretinere',
+          status_curatenie: 'programata',
+          observatii: `Auto luna ${lunaVStr}`,
+          amanare_status: ''
+        })
         programate++
+        cursor = urmatoareaZiLucratoare(addZile(cursor, 7))
       }
     }
 
     if (deProgramat.length > 0) {
       await supabase.from('curatenie').insert(deProgramat)
       await supabase.from('log_actiuni').insert({
-        user_tip: 'admin', actiune: 'Auto-programare luna viitoare',
+        user_tip: 'admin',
+        actiune: 'Auto-programare luna viitoare',
         detalii: `${programate} curatenii pentru ${lunaVStr}`
       })
     }
+
     return { programate }
   } catch(e) { console.error('[Scheduler luna]', e); return { programate: 0 } }
 }
 
+// ── Check si ruleaza ─────────────────────────────────────────
 export async function checkSiRuleazaVineri() {
   const azi = new Date()
-  const aziStr = azi.getFullYear() + '-' + String(azi.getMonth()+1).padStart(2,'0') + '-' + String(azi.getDate()).padStart(2,'0')
+  const aziStr = dateStr(azi)
 
-  // Ruleaza zilnic pentru programarea lunii viitoare (dupa 15 ale lunii)
+  // Dupa 15 ale lunii -> programeaza luna viitoare (o singura data pe zi)
   if (azi.getDate() >= 15) {
     const { data: logLuna } = await supabase.from('log_actiuni').select('id')
       .eq('actiune', 'Auto-programare luna viitoare')
       .gte('created_at', aziStr + 'T00:00:00').limit(1)
-    if (!logLuna || logLuna.length === 0) {
-      programeazaLunaViitoare()
-    }
+    if (!logLuna?.length) programeazaLunaViitoare()
   }
 
-  // Ruleaza saptamanal vineri
+  // Doar vineri -> programeaza saptamana viitoare
   if (azi.getDay() !== 5) return null
+
   const { data: log } = await supabase.from('log_actiuni').select('id')
-    .eq('actiune', 'Auto-programare saptamana').gte('created_at', aziStr + 'T00:00:00').limit(1)
-  if (log && log.length > 0) return null
+    .eq('actiune', 'Auto-programare saptamana')
+    .gte('created_at', aziStr + 'T00:00:00').limit(1)
+  if (log?.length > 0) return null
+
   return genereazaSaptamana()
 }
