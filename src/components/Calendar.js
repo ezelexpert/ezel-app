@@ -45,7 +45,11 @@ export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMont
 
   function cellContent(c) {
     if (!c) return ''
-    if (c.status_curatenie === 'finalizata') return '✓'
+    if (c.status_curatenie === 'finalizata') {
+      // Arata initiala angajatei care a facut curatenia
+      const initial = c.facut_de ? c.facut_de.split(' ')[0][0] : ''
+      return initial ? `✓${initial}` : '✓'
+    }
     if (c.tip_curatenie === 'generala') return 'G'
     if (c.tip_curatenie === 'intretinere') return 'I'
     return 'X'
