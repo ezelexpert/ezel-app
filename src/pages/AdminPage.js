@@ -387,24 +387,25 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
   const incTotal = incRows.reduce((s,[,v]) => s + v.apts.reduce((ss,a) => ss + a.zile * a.pret, 0), 0)
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#1F3864', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ fontSize: 48, fontWeight: 700, color: '#fff', marginBottom: 8 }}>EZEL</div>
-      <div style={{ fontSize: 14, color: 'rgba(255,255,255,.6)', marginBottom: 24 }}>Se încarcă datele...</div>
-      <div style={{ width: 200, height: 4, background: 'rgba(255,255,255,.2)', borderRadius: 2 }}>
-        <div style={{ height: '100%', width: '70%', background: '#fff', borderRadius: 2 }}></div>
-      </div>
+    <div className="ezel-loader">
+      <div className="ezel-logo">EZEL</div>
+      <div style={{ fontSize: 13, color: 'rgba(255,255,255,.5)', letterSpacing: '.05em', textTransform: 'uppercase' }}>Se încarcă datele</div>
+      <div className="ezel-loader-bar"><div className="ezel-loader-fill"></div></div>
     </div>
   )
 
   return (
     <div>
-      {/* Topbar */}
-      <div style={{ background: '#1F3864', color: '#fff', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, position: 'sticky', top: 0, zIndex: 50 }}>
+            {/* Topbar */}
+      <div className="topbar">
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 15, fontWeight: 700 }}>EZEL — Manager</div>
-          <div style={{ fontSize: 11, opacity: .7 }}>{new Date().toLocaleDateString('ro-RO', { weekday: 'long', day: 'numeric', month: 'long' })} · {getNume()}</div>
+          <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.5px' }}>EZEL</div>
+          <div style={{ fontSize: 11, opacity: .6, marginTop: 1 }}>{new Date().toLocaleDateString('ro-RO', { weekday: 'long', day: 'numeric', month: 'long' })} · {getNume()}</div>
         </div>
-        <button className="btn" style={{ background: 'rgba(255,255,255,.18)', border: '1px solid rgba(255,255,255,.3)', color: '#fff', fontSize: 12 }} onClick={handleLogout}>Ieși</button>
+        <button onClick={() => setOpenDropdown('mobile')}
+          style={{ background:'rgba(255,255,255,.15)', border:'1px solid rgba(255,255,255,.2)', color:'#fff', borderRadius:8, padding:'6px 11px', cursor:'pointer', fontSize:18, lineHeight:1 }}
+          className="hamburger-btn">☰</button>
+        <button className="btn" style={{ background: 'rgba(255,255,255,.12)', border: '1px solid rgba(255,255,255,.2)', color: '#fff', fontSize: 12 }} onClick={handleLogout}>Ieși</button>
       </div>
 
       {/* Navigare cu dropdown */}
@@ -463,7 +464,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
         })}
       </div>
 
-      <div style={{ padding: 12, maxWidth: 1200, margin: '0 auto' }}>
+      <div className="page-content">
 
         {/* CALENDAR */}
         {/* Scheduler notification */}
@@ -1082,4 +1083,32 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
       )}
     </div>
   )
-}
+}      {/* Navigare cu dropdown */}
+      <div className="nav-bar" onMouseLeave={() => setOpenDropdown(null)}>
+        {NAV_GROUPS.map(group => {
+          const isActive = group.single ? tab === group.tab : group.items?.some(i => i.tab === tab)
+          return (
+            <div key={group.key} style={{ position: 'relative' }}
+              onMouseEnter={() => !group.single && setOpenDropdown(group.key)}>
+              <div className={`nav-item ${isActive ? 'active' : ''}`}
+                onClick={() => {
+                  if (group.single) { setTab(group.tab); setOpenDropdown(null) }
+                  else setOpenDropdown(openDropdown === group.key ? null : group.key)
+                }}>
+                {group.label}
+                {!group.single && <span style={{ fontSize: 9, opacity: .5 }}>{openDropdown === group.key ? '▲' : '▼'}</span>}
+              </div>
+              {!group.single && openDropdown === group.key && (
+                <div className="nav-dropdown">
+                  {group.items.map(item => (
+                    <div key={item.tab} className={`nav-dropdown-item ${tab === item.tab ? 'active' : ''}`}
+                      onClick={() => { setTab(item.tab); setOpenDropdown(null) }}>
+                      {item.label}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
