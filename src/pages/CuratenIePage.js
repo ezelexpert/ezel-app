@@ -130,12 +130,38 @@ export default function CuratenIePage() {
 
   useEffect(() => {
     if (tab === 2) {
-      // Incarca lenjerii Casandra cand se deschide tab spalatorie
       const today = getToday()
       supabase.from('lenjerii_comenzi').select('*').eq('data_livrare', today).eq('status', 'asteptare')
         .then(({ data }) => setLenjeriiCasandra(data || []))
     }
   }, [tab])
+
+  // Notificare sonora pentru curatenii urgente/noi aparute azi
+  useEffect(() => {
+    if (!azi || azi.length === 0) return
+    const urgente = azi.filter(c => c.tip_curatenie === 'urgenta')
+    if (urgente.length > 0) {
+      // Sunet
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)()
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.connect(gain); gain.connect(ctx.destination)
+        osc.frequency.setValueAtTime(880, ctx.currentTime)
+        osc.frequency.setValueAtTime(660, ctx.currentTime + 0.2)
+        gain.gain.setValueAtTime(0.3, ctx.currentTime)
+        gain.gain.setValueAtTime(0, ctx.currentTime + 0.5)
+        osc.start(); osc.stop(ctx.currentTime + 0.5)
+      } catch(e) {}
+      // Notificare browser
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('🧹 Curățenie urgentă!', {
+          body: urgente.map(c => `AP ${c.nr_apt} - ${c.firma||'Liber'}`).join(', '),
+          icon: '/favicon.ico', vibrate: [200, 100, 200]
+        })
+      }
+    }
+  }, [azi])
 
   async function load() {
     setLoading(true)
@@ -380,6 +406,7 @@ export default function CuratenIePage() {
     const pct = Math.round(done / checklist.length * 100)
     const allDone = done === checklist.length
     const tipLabel = c.tip_curatenie==='generala'?'Generală (la plecare)':c.tip_curatenie==='intretinere'?'Întreținere':'Urgență'
+    const areProsop = c.prosop || false
     const tipColor = c.tip_curatenie==='generala'?'#c0392b':c.tip_curatenie==='intretinere'?'#1F3864':'#7B5E00'
     const tipBg = c.tip_curatenie==='generala'?'#FDECEA':c.tip_curatenie==='intretinere'?'#EBF1FB':'#FFF2CC'
     const borderColor = c.tip_curatenie==='generala'?'#c0392b':c.tip_curatenie==='intretinere'?'#1F3864':'#F0C040'
@@ -405,7 +432,10 @@ export default function CuratenIePage() {
           </span>
         </div>
 
-        <span style={{ display:'inline-block', fontSize:11, padding:'3px 10px', borderRadius:12, background:tipBg, color:tipColor, fontWeight:600, marginBottom:8 }}>{tipLabel}</span>
+        <div style={{ display:'flex', gap:6, marginBottom:8, flexWrap:'wrap' }}>
+          <span style={{ fontSize:11, padding:'3px 10px', borderRadius:12, background:tipBg, color:tipColor, fontWeight:600 }}>{tipLabel}</span>
+          {areProsop && <span style={{ fontSize:11, padding:'3px 10px', borderRadius:12, background:'#EDE7F6', color:'#4527A0', fontWeight:600 }}>🛁 Prosop</span>}
+        </div>
         <div style={{ fontSize:12, color:'#888', marginBottom:6 }}>📅 {c.data_programata}</div>
 
         {areAmanare && (
@@ -490,10 +520,10 @@ export default function CuratenIePage() {
   }
 
   function renderSpalatorie() {
-    const seturiCasandra = lenjeriiCasandra.reduce((s,c) => s + c.nr_seturi, 0)
-const kgCasandra = lenjeriiCasandra.reduce((s,c) => s + c.total_kg, 0)
-const seturiAuto = totalSeturiAzi + seturiCasandra
-const kgAuto = Math.round((totalKgAzi + kgCasandra) * 10) / 10
+    const seturiCasandra = lenjeriiCasandra.reduce((s,c) => s + (c.nr_seturi||0), 0)
+    const kgCasandra = lenjeriiCasandra.reduce((s,c) => s + (c.total_kg||0), 0)
+    const seturiAuto = totalSeturiAzi + seturiCasandra
+    const kgAuto = Math.round((totalKgAzi + kgCasandra) * 10) / 10
     const seturiFinale = parseInt(inputSeturi) || seturiAuto
     const kgFinale = parseFloat(inputKg) || kgAuto
     return (
@@ -503,11 +533,11 @@ const kgAuto = Math.round((totalKgAzi + kgCasandra) * 10) / 10
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
             <div style={{ background:'#fff', borderRadius:8, padding:'10px 12px', textAlign:'center' }}>
               <div style={{ fontSize:24, fontWeight:700, color:'#1F3864' }}>{seturiAuto}</div>
-<div style={{ fontSize:11, color:'#888' }}>seturi lenjerie{seturiCasandra>0?` (incl. ${seturiCasandra} Casandra)`:''}</div>
+              <div style={{ fontSize:11, color:'#888' }}>seturi lenjerie</div>
             </div>
             <div style={{ background:'#fff', borderRadius:8, padding:'10px 12px', textAlign:'center' }}>
-             <div style={{ fontSize:24, fontWeight:700, color:'#1F3864' }}>{kgAuto} kg</div>
-<div style={{ fontSize:11, color:'#888' }}>total de spălat{kgCasandra>0?` (incl. ${kgCasandra}kg Casandra)`:''}</div>
+              <div style={{ fontSize:24, fontWeight:700, color:'#1F3864' }}>{kgAuto} kg</div>
+              <div style={{ fontSize:11, color:'#888' }}>total de spălat</div>
             </div>
           </div>
         </div>
