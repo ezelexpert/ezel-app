@@ -184,20 +184,25 @@ export default function CuratenIePage() {
     setLoading(true)
     try {
       const [aziData, toateData] = await Promise.all([getCuratenieAzi(), getCuratenie()])
-      const sortFn = (a, b) => {
-        const tipOrd = { intretinere: 0, generala: 1, urgenta: 2 }
-        const tA = tipOrd[a.tip_curatenie] ?? 1, tB = tipOrd[b.tip_curatenie] ?? 1
-        if (tA !== tB) return tA - tB
-        return parseInt(a.nr_apt) - parseInt(b.nr_apt)
+      // Sortare dupa nr_apt numeric (1,2,3...65)
+      const sortNrApt = (a, b) => {
+        const nA = parseInt(a.nr_apt) || 999
+        const nB = parseInt(b.nr_apt) || 999
+        return nA - nB
       }
-      setAzi(aziData.filter(c => c.status_curatenie !== 'finalizata').sort(sortFn))
+      // Finalizate: sortate dupa data DESC, apoi nr_apt ASC
+      const sortFinalizate = (a, b) => {
+        if (a.data_programata !== b.data_programata) {
+          return new Date(b.data_programata) - new Date(a.data_programata)
+        }
+        return (parseInt(a.nr_apt)||999) - (parseInt(b.nr_apt)||999)
+      }
+      setAzi(aziData.filter(c => c.status_curatenie !== 'finalizata').sort(sortNrApt))
       setToate(toateData.filter(c => c.status_curatenie !== 'finalizata').sort((a, b) => {
-        const dA = new Date(a.data_programata), dB = new Date(b.data_programata)
-        if (dA - dB !== 0) return dA - dB
-        const tipOrd = { intretinere: 0, generala: 1, urgenta: 2 }
-        return (tipOrd[a.tip_curatenie]??1) - (tipOrd[b.tip_curatenie]??1)
+        if (a.data_programata !== b.data_programata) return a.data_programata > b.data_programata ? 1 : -1
+        return (parseInt(a.nr_apt)||999) - (parseInt(b.nr_apt)||999)
       }))
-      setFinalizate(toateData.filter(c => c.status_curatenie === 'finalizata'))
+      setFinalizate(toateData.filter(c => c.status_curatenie === 'finalizata').sort(sortFinalizate))
     } catch(e) { console.error(e) }
     setLoading(false)
   }
@@ -639,6 +644,9 @@ export default function CuratenIePage() {
 
   // Status pontaj
   const esteIntrată = user?.rol === 'admin' ? true : !!pontajAzi?.ora_intrare
+  // Blocheaza daca nu e pontata (afara din intervalul de clock-in)
+  const INTERVAL_CLOCK_IN = { startH: 7, startM: 20, endH: 7, endM: 40 }
+  const areVoieSaVadaCuratenii = user?.rol === 'admin' || esteIntrată
   const esteIesita = !!pontajAzi?.ora_iesire
 
   return (
@@ -697,8 +705,62 @@ export default function CuratenIePage() {
       </div>
 
       <div style={{ padding:14, maxWidth:600, margin:'0 auto' }}>
+        {/* Blocare curatenii daca nu e pontata */}
+        {user?.rol !== 'admin' && !esteIntrată && tab !== 2 && tab !== 3 && (
+          <div style={{ textAlign:'center', padding:'48px 24px' }}>
+            <div style={{ fontSize:48, marginBottom:16 }}>🔒</div>
+            <div style={{ fontSize:16, fontWeight:600, color:'#333', marginBottom:8 }}>
+              Trebuie să dai Clock In mai întâi
+            </div>
+            <div style={{ fontSize:13, color:'#888', marginBottom:4 }}>
+              Intervalul de pontare: 07:20 — 07:40
+            </div>
+            <div style={{ fontSize:12, color:'#aaa' }}>
+              Dacă ești în afara intervalului, trimite o cerere de modificare.
+            </div>
+          </div>
+        )}
+        {(user?.rol === 'admin' || esteIntrată || tab === 2 || tab === 3) && (
+        <>
         {tab === 2 ? renderSpalatorie() :
           loading ? <div style={{ textAlign:'center', padding:40, color:'#aaa' }}>Se încarcă...</div>
+          : tab === 3 ? (
+            // Finalizate: grupate pe data, sortate dupa nr_apt
+            finalizate.length === 0 ? (
+              <div style={{ textAlign:'center', padding:'50px 20px', color:'#bbb' }}>
+                <div style={{ fontSize:48, marginBottom:12 }}>🧹</div>
+                <div style={{ fontSize:13 }}>Nicio curățenie finalizată încă.</div>
+              </div>
+            ) : (() => {
+              // Grupare pe data_programata
+              const byDate = {}
+              finalizate.forEach(c => {
+                const d = c.data_finalizare?.split('T')[0] || c.data_programata || '—'
+                if (!byDate[d]) byDate[d] = []
+                byDate[d].push(c)
+              })
+              // Sortare date descendent (cea mai recenta prima)
+              return Object.keys(byDate)
+                .sort((a, b) => b.localeCompare(a))
+                .map(data => (
+                  <div key={data} style={{ marginBottom: 20 }}>
+                    <div style={{ fontSize:12, fontWeight:600, color:'#94A3B8', textTransform:'uppercase',
+                      letterSpacing:'.06em', marginBottom:8, paddingBottom:6,
+                      borderBottom:'1px solid #E9EDF4', display:'flex', alignItems:'center', gap:6 }}>
+                      <span>📅</span>
+                      <span>{new Date(data+'T12:00:00').toLocaleDateString('ro-RO',{weekday:'long',day:'numeric',month:'long'})}</span>
+                      <span style={{ marginLeft:'auto', background:'#E8F7EF', color:'#1A7A4A',
+                        padding:'2px 8px', borderRadius:99, fontSize:11 }}>
+                        {byDate[data].length} finalizate
+                      </span>
+                    </div>
+                    {byDate[data]
+                      .sort((a,b) => (parseInt(a.nr_apt)||999) - (parseInt(b.nr_apt)||999))
+                      .map(renderCard)}
+                  </div>
+                ))
+            })()
+          )
           : lists[tab]?.length === 0 ? (
             <div style={{ textAlign:'center', padding:'50px 20px', color:'#bbb' }}>
               <div style={{ fontSize:48, marginBottom:12 }}>{emptyMsgs[tab].icon}</div>
@@ -706,6 +768,8 @@ export default function CuratenIePage() {
             </div>
           ) : lists[tab]?.map(renderCard)
         }
+        </>
+        )}
       </div>
 
       {/* MODAL AMANARE */}
