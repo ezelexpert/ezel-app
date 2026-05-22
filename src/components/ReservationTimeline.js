@@ -220,7 +220,7 @@ export default function ReservationTimeline({ apts, curatenii, onEditApt, onAddA
 
       {/* Timeline */}
       <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid #E2E8F0', background: '#fff' }}>
-        <div style={{ minWidth: LABEL_W + COL_W * ZILE_VIZIBILE }}>
+        <div style={{ minWidth: LABEL_W + COL_W * zile.length }}>
 
           {/* Header */}
           <div style={{ display: 'flex', borderBottom: '1px solid #E2E8F0', background: '#F8FAFC', position: 'sticky', top: 0, zIndex: 10 }}>
