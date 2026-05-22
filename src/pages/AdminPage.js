@@ -487,7 +487,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
           <div style={{ fontSize: 11, opacity: .6, marginTop: 1 }}>{new Date().toLocaleDateString('ro-RO', { weekday: 'long', day: 'numeric', month: 'long' })} · {getNume()}</div>
         </div>
         <button onClick={() => setOpenDropdown('mobile')}
-          style={{ background:'rgba(255,255,255,.15)', border:'1px solid rgba(255,255,255,.2)', color:'#fff', borderRadius:8, padding:'6px 11px', cursor:'pointer', fontSize:18, lineHeight:1 }}
+          style={{ background:'rgba(255,255,255,.15)', border:'1px solid rgba(255,255,255,.2)', color:'#fff', borderRadius: 12, padding:'6px 11px', cursor:'pointer', fontSize:18, lineHeight:1 }}
           className="hamburger-btn">☰</button>
         <button className="btn" style={{ background: 'rgba(255,255,255,.12)', border: '1px solid rgba(255,255,255,.2)', color: '#fff', fontSize: 12 }} onClick={handleLogout}>Ieși</button>
       </div>
@@ -511,7 +511,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
                   padding: '11px 14px', fontSize: 13, cursor: 'pointer', fontWeight: 600,
                   color: isActive ? '#1F3864' : '#555',
                   borderBottom: `2.5px solid ${isActive ? '#1F3864' : 'transparent'}`,
-                  display: 'flex', alignItems: 'center', gap: 4, userSelect: 'none',
+                  display: 'flex', alignItems: 'center', gap: 6, userSelect: 'none',
                   whiteSpace: 'nowrap'
                 }}>
                 {group.label}
@@ -553,7 +553,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
         {/* CALENDAR */}
         {/* Scheduler notification */}
         {schedulerMsg && (
-          <div style={{ background:'#E2EFDA', border:'1px solid #C0DD97', borderRadius:10, padding:'10px 14px', marginBottom:12, display:'flex', alignItems:'center', gap:10, fontSize:13, color:'#375623', fontWeight:500 }}>
+          <div style={{ background:'#F0F9E8', border:'1px solid #C8E6A0', borderRadius:16, padding:'10px 14px', marginBottom:12, display:'flex', alignItems:'center', gap:10, fontSize:13, color:'#375623', fontWeight:500 }}>
             <span style={{ flex:1 }}>{schedulerMsg}</span>
             <button onClick={() => setSchedulerMsg(null)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:16, color:'#375623' }}>✕</button>
           </div>
@@ -649,15 +649,15 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
                     </div>
                     {/* Statistici firma */}
                     <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6, marginBottom:8 }}>
-                      <div style={{ background:'#f8f9fa', borderRadius:7, padding:'6px 8px', textAlign:'center' }}>
+                      <div style={{ background:'#f8f9fa', borderRadius:12, padding:'10px 12px', textAlign:'center' }}>
                         <div style={{ fontSize:13, fontWeight:700, color:'#1F3864' }}>{v.apts.length}</div>
                         <div style={{ fontSize:10, color:'#888' }}>apt. active</div>
                       </div>
-                      <div style={{ background:'#f8f9fa', borderRadius:7, padding:'6px 8px', textAlign:'center' }}>
+                      <div style={{ background:'#f8f9fa', borderRadius:12, padding:'10px 12px', textAlign:'center' }}>
                         <div style={{ fontSize:13, fontWeight:700, color:'#375623' }}>{pretMediu} RON</div>
                         <div style={{ fontSize:10, color:'#888' }}>preț mediu</div>
                       </div>
-                      <div style={{ background:'#f8f9fa', borderRadius:7, padding:'6px 8px', textAlign:'center' }}>
+                      <div style={{ background:'#f8f9fa', borderRadius:12, padding:'10px 12px', textAlign:'center' }}>
                         <div style={{ fontSize:13, fontWeight:700, color:'#4527A0' }}>{ultimaData || '—'}</div>
                         <div style={{ fontSize:10, color:'#888' }}>ultima cazare</div>
                       </div>
@@ -788,9 +788,9 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
             {editData.nota && /\d+\s*c\s*\/?\s*[ls]/i.test(editData.nota) &&
               <div style={{ fontSize:11, color:'#375623', marginTop:3 }}>✓ {editData.nota.match(/(\d+)/)?.[1]} curățenii/lună - auto-programat</div>}
           </div>
-          <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', background:'#f8f9fa', borderRadius:8, marginBottom:8, cursor:'pointer' }}
+          <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', background:'#f8f9fa', borderRadius: 12, marginBottom:8, cursor:'pointer' }}
             onClick={() => setEditData({...editData, prosop: !editData.prosop})}>
-            <div style={{ width:20, height:20, borderRadius:5, border:`2px solid ${editData.prosop?'#1F3864':'#ddd'}`, background:editData.prosop?'#1F3864':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            <div style={{ width:20, height:20, borderRadius: 8, border:`2px solid ${editData.prosop?'#1F3864':'#ddd'}`, background:editData.prosop?'#1F3864':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
               {editData.prosop && <span style={{ color:'#fff', fontSize:13 }}>✓</span>}
             </div>
             <span style={{ fontSize:13, fontWeight:500, color:'#333' }}>🛁 Prosop inclus</span>
@@ -830,7 +830,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
             </div>
           )}
           {(editData.tip_serviciu||'cazare') === 'cazare' && editData.nr_nopti_manual && editData.pret && (
-            <div style={{ background:'#E2EFDA', borderRadius:7, padding:'6px 10px', fontSize:12, color:'#375623', fontWeight:600 }}>
+            <div style={{ background:'#E2EFDA', borderRadius: 12, padding:'6px 10px', fontSize:12, color:'#375623', fontWeight:600 }}>
               Total estimat: {(parseInt(editData.nr_nopti_manual)||0) * (Number(editData.pret)||0)} RON ({editData.nr_nopti_manual} nopți × {editData.pret} RON)
             </div>
           )}
@@ -854,7 +854,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
               </select>
             </div>
           </div>
-          <div style={{ height: '0.5px', background: '#eee', margin: '10px 0' }}></div>
+          <div style={{ height: '1px', background: 'linear-gradient(to right, transparent, #E2E8F0, transparent)', margin: '14px 0' }}></div>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 6 }}>PROGRAMARE AUTOMATĂ CURĂȚENIE (opțional)</div>
           <div className="r2">
             <div className="fg">
@@ -870,11 +870,11 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
             </div>
           </div>
           {editData.nr_nopti && editData.data_checkin && (
-            <div style={{ fontSize: 12, color: '#375623', background: '#E2EFDA', padding: '6px 10px', borderRadius: 7, marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: '#375623', background: '#E2EFDA', padding: '9px 12px', borderRadius: 12, marginTop: 4 }}>
               ✓ Curățenie generală pe {(() => { try { const d = new Date(editData.data_checkin); d.setDate(d.getDate() + parseInt(editData.nr_nopti)); return d.toLocaleDateString('ro-RO') } catch(e) { return '' } })()}
             </div>
           )}
-          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
             <button className="btn btn-p" style={{ flex: 1 }} onClick={saveEditApt}>Salvează</button>
             <button className="btn" onClick={() => setModal(null)}>Anulează</button>
           </div>
@@ -895,7 +895,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
                       setApts(prev => prev.map(x => x.nr===a.nr ? {...x, nr_locuri: n} : x))
                       await updateApartament(a.nr, { nr_locuri: n })
                     }}
-                      style={{ width:32, height:32, borderRadius:7, border:`2px solid ${(a.nr_locuri||2)===n?'#1F3864':'#ddd'}`, background:(a.nr_locuri||2)===n?'#1F3864':'#fff', color:(a.nr_locuri||2)===n?'#fff':'#555', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontWeight:700, fontSize:13 }}>
+                      style={{ width:32, height:32, borderRadius: 12, border:`2px solid ${(a.nr_locuri||2)===n?'#1F3864':'#ddd'}`, background:(a.nr_locuri||2)===n?'#1F3864':'#fff', color:(a.nr_locuri||2)===n?'#fff':'#555', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', fontWeight:700, fontSize:13 }}>
                       {n}
                     </div>
                   ))}
@@ -955,7 +955,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
               </div>
             </div>
           )}
-          <div style={{ height: '0.5px', background: '#eee', margin: '10px 0' }}></div>
+          <div style={{ height: '1px', background: 'linear-gradient(to right, transparent, #E2E8F0, transparent)', margin: '14px 0' }}></div>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#888', marginBottom: 6 }}>PROGRAMARE AUTOMATĂ CURĂȚENIE (opțional)</div>
           <div className="r2">
             <div className="fg"><label className="fl">Data check-in</label>
@@ -969,11 +969,11 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
             </div>
           </div>
           {editData.nr_nopti && editData.data_checkin && (
-            <div style={{ fontSize: 12, color: '#375623', background: '#E2EFDA', padding: '6px 10px', borderRadius: 7, marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: '#375623', background: '#E2EFDA', padding: '9px 12px', borderRadius: 12, marginTop: 4 }}>
               ✓ Curățenie generală pe {(() => { try { const d = new Date(editData.data_checkin); d.setDate(d.getDate() + parseInt(editData.nr_nopti)); return d.toLocaleDateString('ro-RO') } catch(e) { return '' } })()}
             </div>
           )}
-          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
             <button className="btn btn-p" style={{ flex: 1 }} onClick={saveAddApt}>Adaugă</button>
             <button className="btn" onClick={() => setModal(null)}>Anulează</button>
           </div>
@@ -1004,7 +1004,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
             </div>
             <div className="fg"><label className="fl">Data elib.</label><input className="fi" placeholder="ex: 20.05" value={editData.data_elib||''} onChange={e => setEditData({...editData, data_elib: e.target.value})} /></div>
           </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
             <button className="btn btn-p" style={{ flex: 1 }} onClick={saveMultiEdit}>Salvează</button>
             <button className="btn" onClick={() => setModal(null)}>Anulează</button>
           </div>
@@ -1028,7 +1028,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
           </div>
           <div className="fg"><label className="fl">Data</label><input className="fi" type="date" value={editData.data_programata||''} onChange={e => setEditData({...editData, data_programata: e.target.value})} /></div>
           <div className="fg"><label className="fl">Observații</label><input className="fi" value={editData.observatii||''} onChange={e => setEditData({...editData, observatii: e.target.value})} /></div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
             <button className="btn btn-g" style={{ flex: 1 }} onClick={saveCurUnic}>✓ Programează</button>
             <button className="btn" onClick={() => setModal(null)}>Anulează</button>
           </div>
@@ -1085,7 +1085,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
           </div>
           <div className="fg"><label className="fl">Data</label><input className="fi" type="date" value={editData.data_programata||''} onChange={e => setEditData({...editData, data_programata: e.target.value})} /></div>
           <div className="fg"><label className="fl">Observații</label><input className="fi" value={editData.observatii||''} onChange={e => setEditData({...editData, observatii: e.target.value})} /></div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
             <button className="btn btn-g" style={{ flex: 1 }} onClick={saveCurApt}>✓ Programează</button>
             <button className="btn" onClick={() => setModal(null)}>Anulează</button>
           </div>
@@ -1118,7 +1118,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
                   <option value="urgenta">Urgență</option>
                 </select>
               </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+              <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
                 <button className="btn btn-g" style={{ flex: 1 }} onClick={() => handleCellAction('add', editData)}>✓ Adaugă</button>
                 <button className="btn" onClick={() => setModal(null)}>Anulează</button>
               </div>
@@ -1149,7 +1149,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
             </div>
           </div>
           <div className="fg"><label className="fl">Observații</label><input className="fi" value={editData.observatii||''} onChange={e => setEditData({...editData, observatii: e.target.value})} /></div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
             <button className="btn btn-p" style={{ flex: 1 }} onClick={saveIst}>Salvează</button>
             <button className="btn" onClick={() => setModal(null)}>Anulează</button>
           </div>
