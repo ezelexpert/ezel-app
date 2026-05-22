@@ -108,14 +108,33 @@ export default function AdminPage() {
       const in5Zile = new Date(); in5Zile.setDate(in5Zile.getDate() + 5)
       const in5ZileStr = in5Zile.toISOString().split('T')[0]
 
+      // Normalizeaza data_elib (poate fi in format DD.MM.YYYY sau YYYY-MM-DD)
+      function normalizeazaData(d) {
+        if (!d) return null
+        if (d.includes('.')) {
+          const parts = d.split('.')
+          if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`
+          if (parts.length === 2) return `${new Date().getFullYear()}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`
+        }
+        return d
+      }
+
       // Auto elib cu 5 zile inainte
-      for (const apt of a.filter(x => x.status==='activ' && x.data_elib && x.data_elib >= aziStr && x.data_elib <= in5ZileStr)) {
+      for (const apt of a.filter(x => {
+        if (x.status !== 'activ' || !x.data_elib) return false
+        const dn = normalizeazaData(x.data_elib)
+        return dn && dn >= aziStr && dn <= in5ZileStr
+      })) {
         await updateApartament(apt.nr, { status: 'elib' })
         const idx = a.findIndex(x => x.nr === apt.nr); if(idx>=0) a[idx].status = 'elib'
       }
 
       // Auto liber daca data_elib a trecut
-      const deLiberat = a.filter(apt => apt.status==='elib' && apt.data_elib && apt.data_elib < aziStr)
+      const deLiberat = a.filter(apt => {
+        if (apt.status !== 'elib' || !apt.data_elib) return false
+        const dataNorm = normalizeazaData(apt.data_elib)
+        return dataNorm && dataNorm < aziStr
+      })
       if (deLiberat.length > 0) {
         const rf = { status:'liber', firma:'', nota:'', data_elib:'', pret:0, pret_utilitati:0, tip_serviciu:'cazare', utilitati_tip:'fix' }
         for (const apt of deLiberat) await updateApartament(apt.nr, rf)
@@ -124,7 +143,7 @@ export default function AdminPage() {
 
       // In ziua eliberarii cu curatenie finalizata azi -> trece la liber
       const deTrecLaLiber = a.filter(apt =>
-        apt.status === 'elib' && apt.data_elib === aziStr &&
+        apt.status === 'elib' && normalizeazaData(apt.data_elib) === aziStr &&
         c.some(cur => cur.nr_apt === apt.nr && cur.status_curatenie === 'finalizata' && cur.data_programata === aziStr)
       )
       if (deTrecLaLiber.length > 0) {
