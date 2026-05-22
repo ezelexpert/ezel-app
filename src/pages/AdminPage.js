@@ -17,6 +17,7 @@ import SalariiTab from './SalariiTab'
 import ReservationTimeline from '../components/ReservationTimeline'
 import PontajTab from './PontajTab'
 import { checkSiRuleazaVineri, genereazaSaptamana } from '../lib/autoScheduler'
+import DashboardTab from './DashboardTab'
 import { getNume } from '../lib/auth'
 
 // ── Normalizeaza data la YYYY-MM-DD ──────────────────────────
@@ -77,7 +78,7 @@ function gasesteFirmaSimilara(numeNou, firmeExistente, prag = 0.5) {
 
 // Navigare cu dropdown grupuri
 const NAV_GROUPS = [
-  { key: 'acasa', label: '🏠 Acasă', single: true, tab: 0 },
+  { key: 'acasa', label: '🏠 Acasă', single: true, tab: 11 },
   {
     key: 'operational', label: '⚙️ Operațional',
     items: [
@@ -111,7 +112,7 @@ const ST_MAP = { activ: ['bb','Ocupat'], elib: ['br2','Elib.'], special: ['bp2',
 
 export default function AdminPage() {
   const navigate = useNavigate()
-  const [tab, setTab] = useState(0)
+  const [tab, setTab] = useState(11)
   const [apts, setApts] = useState([])
   const [curatenii, setCuratenii] = useState([])
   const [istoric, setIstoric] = useState([])
@@ -557,6 +558,17 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
             <span style={{ flex:1 }}>{schedulerMsg}</span>
             <button onClick={() => setSchedulerMsg(null)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:16, color:'#375623' }}>✕</button>
           </div>
+        )}
+
+        {tab === 11 && (
+          <DashboardTab
+            apts={apts}
+            curatenii={curatenii}
+            onNavigate={(t) => {
+              if (t === 'curatenie') window.location.href = '/curatenie'
+              else setTab(t)
+            }}
+          />
         )}
 
         {tab === 0 && (
