@@ -1,16 +1,15 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 
-const ZILE_VIZIBILE = 30
-const COL_W = 36
+const COL_W = 34
 const ROW_H = 44
 const LABEL_W = 130
 
 const ST_COLORS = {
-  activ:   { bg: 'rgba(26,58,107,.45)', text: '#0F2344' },
-  elib:    { bg: 'rgba(185,28,28,.35)', text: '#7F1D1D' },
-  special: { bg: 'rgba(91,33,182,.35)', text: '#3B0764' },
-  maint:   { bg: 'rgba(180,83,9,.35)', text: '#78350F' },
-  chirie:  { bg: 'rgba(15,118,110,.35)', text: '#134E4A' },
+  activ:   { bg: '#1A3A6B', text: '#fff' },
+  elib:    { bg: '#B91C1C', text: '#fff' },
+  special: { bg: '#5B21B6', text: '#fff' },
+  maint:   { bg: '#B45309', text: '#fff' },
+  chirie:  { bg: '#0F766E', text: '#fff' },
 }
 
 function addZile(d, n) {
@@ -34,11 +33,8 @@ const LUNI_SC = ['Ian','Feb','Mar','Apr','Mai','Iun','Iul','Aug','Sep','Oct','No
 const ZI_SC = ['Du','Lu','Ma','Mi','Jo','Vi','Sa']
 
 export default function ReservationTimeline({ apts, curatenii, onEditApt, onAddApt, onNewReservation }) {
-  const [startDate, setStartDate] = useState(() => {
-    const d = new Date(); d.setHours(0,0,0,0)
-    d.setDate(d.getDate() - 5)
-    return d
-  })
+  const [calAn, setCalAn] = useState(() => new Date().getFullYear())
+  const [calLuna, setCalLuna] = useState(() => new Date().getMonth())
   const [srch, setSrch] = useState('')
   const [flt, setFlt] = useState('')
   const [tooltip, setTooltip] = useState(null)
@@ -50,9 +46,14 @@ export default function ReservationTimeline({ apts, curatenii, onEditApt, onAddA
 
   const azi = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d }, [])
 
+  const startDate = useMemo(() => {
+    const d = new Date(calAn, calLuna, 1); d.setHours(0,0,0,0); return d
+  }, [calAn, calLuna])
+
   const zile = useMemo(() => {
-    return Array.from({ length: ZILE_VIZIBILE }, (_, i) => addZile(startDate, i))
-  }, [startDate])
+    const nrZile = new Date(calAn, calLuna + 1, 0).getDate()
+    return Array.from({ length: nrZile }, (_, i) => addZile(startDate, i))
+  }, [calAn, calLuna, startDate])
 
   const filteredApts = useMemo(() => {
     return apts.filter(a => {
@@ -68,7 +69,7 @@ export default function ReservationTimeline({ apts, curatenii, onEditApt, onAddA
 
   const segments = useMemo(() => {
     const map = {}
-    const endDate = addZile(startDate, ZILE_VIZIBILE)
+    const endDate = addZile(startDate, zile.length)
     filteredApts.forEach(apt => {
       const segs = []
       if (apt.status !== 'liber' && apt.status !== 'maint') {
@@ -197,11 +198,14 @@ export default function ReservationTimeline({ apts, curatenii, onEditApt, onAddA
           <option value="elib">Eliberează</option>
           <option value="maint">Mentenanță</option>
         </select>
-        <button onClick={() => setStartDate(d => addZile(d, -7))}
+        <button onClick={() => { let l=calLuna-1,a=calAn; if(l<0){l=11;a--}; setCalLuna(l); setCalAn(a) }}
           style={{ height: 34, width: 34, border: '1.5px solid #E2E8F0', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 16 }}>◀</button>
-        <button onClick={() => { const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-5); setStartDate(d) }}
-          style={{ height: 34, padding: '0 12px', border: '1.5px solid #1A3A6B', borderRadius: 8, background: '#EEF4FF', color: '#1A3A6B', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Azi</button>
-        <button onClick={() => setStartDate(d => addZile(d, 7))}
+        <div style={{ height: 34, padding: '0 14px', border: '1.5px solid #1A3A6B', borderRadius: 8, background: '#EEF4FF', color: '#1A3A6B', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', minWidth: 130, justifyContent: 'center' }}>
+          {['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie'][calLuna]} {calAn}
+        </div>
+        <button onClick={() => { const now=new Date(); setCalLuna(now.getMonth()); setCalAn(now.getFullYear()) }}
+          style={{ height: 34, padding: '0 10px', border: '1.5px solid #E2E8F0', borderRadius: 8, background: '#fff', color: '#1A3A6B', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>Azi</button>
+        <button onClick={() => { let l=calLuna+1,a=calAn; if(l>11){l=0;a++}; setCalLuna(l); setCalAn(a) }}
           style={{ height: 34, width: 34, border: '1.5px solid #E2E8F0', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 16 }}>▶</button>
         <button onClick={() => onAddApt && onAddApt()}
           style={{ height: 34, padding: '0 14px', background: '#0F2344', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
