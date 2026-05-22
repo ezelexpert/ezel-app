@@ -131,8 +131,25 @@ export default function CuratenIePage() {
   useEffect(() => {
     if (tab === 2) {
       const today = getToday()
+      // Incarca lenjerii Casandra
       supabase.from('lenjerii_comenzi').select('*').eq('data_livrare', today).eq('status', 'asteptare')
         .then(({ data }) => setLenjeriiCasandra(data || []))
+      // Verifica daca exista raport spalatorie pentru azi - daca nu, reseteaza inputurile
+      supabase.from('spalatorie').select('*').eq('data', today).single()
+        .then(({ data }) => {
+          if (data) {
+            setInputSeturi(String(data.total_seturi || ''))
+            setInputKg(String(data.total_kg || ''))
+            setToateGata(data.toate_gata || false)
+          } else {
+            // Zi noua - reseteaza
+            setInputSeturi('')
+            setInputKg('')
+            setToateGata(false)
+          }
+        }).catch(() => {
+          setInputSeturi(''); setInputKg(''); setToateGata(false)
+        })
     }
   }, [tab])
 
