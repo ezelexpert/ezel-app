@@ -541,6 +541,17 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
               curatenii={curatenii}
               onEditApt={(apt) => { setEditData({ ...apt }); setModal('editApt') }}
               onAddApt={() => { setEditData({ tip: 'simplu', status: 'liber', plata: 'OP', tip_serviciu: 'cazare' }); setModal('addApt') }}
+              onNewReservation={({ apt, data_checkin, data_elib, zile }) => {
+                setEditData({
+                  ...apt,
+                  data_checkin,
+                  data_elib,
+                  nr_nopti: zile,
+                  status: 'activ',
+                  tip_serviciu: apt.tip_serviciu || 'cazare'
+                })
+                setModal('editApt')
+              }}
             />
             {/* Actiuni multiple - raman accesibile */}
             <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
