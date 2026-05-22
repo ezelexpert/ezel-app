@@ -14,6 +14,7 @@ import AmanariTab from './AmanariTab'
 import IncasariTab from './IncasariTab'
 import SpalatoriePage from './SpalatoriePage'
 import SalariiTab from './SalariiTab'
+import ReservationTimeline from '../components/ReservationTimeline'
 import PontajTab from './PontajTab'
 import { checkSiRuleazaVineri, genereazaSaptamana } from '../lib/autoScheduler'
 import { getNume } from '../lib/auth'
@@ -532,74 +533,21 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
           />
         )}
 
-        {/* APARTAMENTE */}
+        {/* APARTAMENTE - Timeline view */}
         {tab === 1 && (
           <div>
-            <div className="srch-row">
-              <input placeholder="Caută..." value={srchApt} onChange={e => setSrchApt(e.target.value)} />
-              <select value={fltStatus} onChange={e => setFltStatus(e.target.value)}>
-                <option value="">Toate</option>
-                <option value="activ">Ocupat</option>
-                <option value="liber">Liber</option>
-                <option value="elib">Eliberează</option>
-                <option value="maint">Mentenanță</option>
-              </select>
-              <button className="btn btn-p" onClick={() => { setEditData({ tip: 'simplu', status: 'liber', plata: 'OP', tip_serviciu: 'cazare' }); setModal('addApt') }}>+ Apt nou</button>
-              <button className="btn" style={{ background:'#EBF1FB', color:'#1F3864', border:'1px solid #90B8E8' }} onClick={() => { setEditData({}); setModal('editLocuri') }}>🛏 Locuri</button>
-              <button className="btn btn-o" onClick={() => { setEditData({}); setModal('medit') }} disabled={selApts.size === 0}>✏️ Editează</button>
-              <button className="btn btn-g" onClick={() => { setEditData({ data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('mcur') }} disabled={selApts.size === 0}>🧹 Curățenie</button>
+            <ReservationTimeline
+              apts={apts}
+              curatenii={curatenii}
+              onEditApt={(apt) => { setEditData({ ...apt }); setModal('editApt') }}
+              onAddApt={() => { setEditData({ tip: 'simplu', status: 'liber', plata: 'OP', tip_serviciu: 'cazare' }); setModal('addApt') }}
+            />
+            {/* Actiuni multiple - raman accesibile */}
+            <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button className="btn" style={{ background:'#EBF1FB', color:'#1F3864', border:'1px solid #90B8E8' }} onClick={() => { setEditData({}); setModal('editLocuri') }}>🛏 Modifică locuri</button>
+              <button className="btn btn-o" onClick={() => { setEditData({}); setModal('medit') }} disabled={selApts.size === 0}>✏️ Editează multiple</button>
+              <button className="btn btn-g" onClick={() => { setEditData({ data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('mcur') }} disabled={selApts.size === 0}>🧹 Curățenie multiple</button>
             </div>
-            {selApts.size > 0 && (
-              <div className="mbar">
-                <span className="mcnt">{selApts.size} apartamente selectate</span>
-                <button className="btn btn-o" onClick={() => { setEditData({}); setModal('medit') }}>✏️ Editează</button>
-                <button className="btn btn-g" onClick={() => { setEditData({ data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('mcur') }}>🧹 Curățenie</button>
-                <button className="btn" style={{ background:'#FDECEA', color:'#c0392b', border:'1px solid #F5A0A0' }}
-                  onClick={async () => {
-                    const list = Array.from(selApts)
-                    if (!window.confirm(`Ștergi curățeniile active pentru ${list.length} apartamente selectate?`)) return
-                    for (const nr of list) {
-                      const { data: cur } = await supabase.from('curatenie').select('id').eq('nr_apt', nr).neq('status_curatenie', 'finalizata')
-                      if (cur) for (const c of cur) await stergeCuratenie(c.id)
-                    }
-                    setCuratenii(prev => prev.filter(c => !list.includes(String(c.nr_apt)) && !list.includes(c.nr_apt) || c.status_curatenie === 'finalizata'))
-                    const fresh = await getCuratenie(); setCuratenii(fresh)
-                    clearSel()
-                  }}>🗑 Șterge curățenie</button>
-                <button className="btn" onClick={clearSel}>✕</button>
-              </div>
-            )}
-            <table className="tbl">
-              <thead><tr>
-                <th><input type="checkbox" onChange={e => { if(e.target.checked) setSelApts(new Set(filteredApts.map(a=>a.nr))); else clearSel() }} /></th>
-                <th>Nr</th><th>Locuri</th><th>Firmă</th><th>Notă</th><th>Status</th><th>Preț</th><th>Ultima cur.</th><th>Urm. cur.</th><th></th>
-              </tr></thead>
-              <tbody>
-                {filteredApts.map(a => {
-                  const [bc, bl] = ST_MAP[a.status] || ['bk','—']
-                  const statusLabel = a.status === 'elib' && a.data_elib ? `Elib. ${a.data_elib}` : bl
-                  const isDbl = a.tip === 'dublu' || String(a.nr).startsWith('D')
-                  return (
-                    <tr key={a.nr} className={selApts.has(a.nr) ? 'sel' : ''} style={{ background: a.status==='liber' ? 'rgba(194,239,178,0.25)' : undefined }}>
-                      <td><input type="checkbox" checked={selApts.has(a.nr)} onChange={() => toggleSel(a.nr)} /></td>
-                      <td><strong>{a.nr}</strong>{isDbl && <span className="tip-d">2x</span>}</td>
-                      <td style={{ textAlign:'center' }}>
-                        <span style={{ display:'inline-flex', alignItems:'center', gap:3, fontSize:12, fontWeight:600, color:'#1F3864', background:'#EBF1FB', padding:'2px 8px', borderRadius:8 }}>
-                          {a.nr_locuri||2} locuri
-                        </span>
-                      </td>
-                      <td>{a.firma || '—'}</td>
-                      <td style={{ color: '#888', fontSize: 11 }}>{a.nota || '—'}</td>
-                      <td><span className={`badge ${bc}`}>{statusLabel}</span></td>
-                      <td>{a.pret ? `${a.pret} RON` : '—'}</td>
-                      <td style={{ fontSize: 11, color: '#888' }}>{a.ultima_curatenie ? a.ultima_curatenie.split(' ')[0] : '—'}</td>
-                      <td style={{ fontSize: 11, color: '#1F3864', fontWeight:500 }}>{(() => { const urm = curatenii.filter(c => c.nr_apt===a.nr && c.status_curatenie!=='finalizata').sort((x,y)=>x.data_programata>y.data_programata?1:-1)[0]; return urm ? urm.data_programata : '—' })()}</td>
-                      <td><button className="btn" style={{ height: 24, fontSize: 11 }} onClick={() => { setEditData({ ...a }); setModal('editApt') }}>✏️</button></td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
           </div>
         )}
 
