@@ -238,18 +238,16 @@ export async function genereazaSaptamana() {
       let dataFinala
 
       if (item.isElm) {
-        // ELM: luni sau vineri cea mai apropiata de targetDate
-        const ziElm = celMaiApropiataLuniSauVineri(item.targetDate)
-        // Asigura ca e in saptamana viitoare
-        if (ziElm < luni) {
-          dataFinala = dateStr(luni) // luni saptamana viitoare
-          // Verifica daca luni e luni sau vineri
-          if (luni.getDay() !== 1) dataFinala = dateStr(vineri)
-        } else if (ziElm > vineri) {
-          skipped++; continue
-        } else {
-          dataFinala = dateStr(ziElm)
+        // ELM: luni sau vineri in saptamana viitoare, cea mai apropiata de targetDate
+        const elmZile = [luni, vineri] // luni si vineri din saptamana viitoare
+        // Gaseste ziua ELM cea mai apropiata de targetDate dar IN saptamana viitoare
+        let bestElm = null, bestDiff = Infinity
+        for (const z of elmZile) {
+          const diff = Math.abs(diffZile(item.targetDate, z))
+          if (diff < bestDiff) { bestDiff = diff; bestElm = z }
         }
+        if (!bestElm) { skipped++; continue }
+        dataFinala = dateStr(bestElm)
         // ELM depaseste limita
       } else {
         // Normal: incearca targetDate, daca e plina gaseste cea mai libera zi
