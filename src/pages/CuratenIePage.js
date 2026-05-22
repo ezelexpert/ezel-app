@@ -433,7 +433,7 @@ export default function CuratenIePage() {
     return (
       <div key={c.id} style={{ background:'#fff', borderRadius:12, border:`1px solid #e0e0e0`, borderLeft:`4px solid ${borderColor}`, padding:'14px 16px', marginBottom:10 }}>
         <div style={{ display:'flex', alignItems:'flex-start', gap:10, marginBottom:10 }}>
-          <div style={{ width:44, height:44, borderRadius:10, background:isDbl?'#EDE7F6':'#E2EFDA', color:isDbl?'#4527A0':'#375623', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700, flexShrink:0 }}>
+          <div style={{ width:44, height:44, borderRadius: 14, background:isDbl?'#EDE7F6':'#E2EFDA', color:isDbl?'#4527A0':'#375623', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700, flexShrink:0 }}>
             {c.nr_apt}
           </div>
           <div style={{ flex:1 }}>
@@ -456,7 +456,7 @@ export default function CuratenIePage() {
         <div style={{ fontSize:12, color:'#888', marginBottom:6 }}>📅 {c.data_programata}</div>
 
         {areAmanare && (
-          <div style={{ background:'#FFF2CC', border:'1px solid #F0C040', borderRadius:8, padding:'6px 10px', marginBottom:8, fontSize:12, color:'#7B5E00' }}>
+          <div style={{ background:'#FFF2CC', border:'1px solid #F0C040', borderRadius: 12, padding:'6px 10px', marginBottom:8, fontSize:12, color:'#7B5E00' }}>
             ⏳ <strong>Amânare propusă</strong> pentru {c.amanare_propusa} — aștepți aprobarea managerului
             <div style={{ fontSize:11, color:'#999', marginTop:2 }}>Motiv: {c.amanare_motiv}</div>
           </div>
@@ -464,18 +464,18 @@ export default function CuratenIePage() {
 
         {c.status_curatenie === 'finalizata' && (
           <div style={{ fontSize:12, color:'#888', display:'flex', alignItems:'center', gap:8 }}>
-            {c.deja_curat && <span style={{ fontSize:10, background:'#EDE7F6', color:'#4527A0', padding:'1px 7px', borderRadius:10, fontWeight:600 }}>✨ Deja curat</span>}
+            {c.deja_curat && <span style={{ fontSize:10, background:'#EDE7F6', color:'#4527A0', padding:'1px 7px', borderRadius: 14, fontWeight:600 }}>✨ Deja curat</span>}
             ✅ Finalizată la: {c.data_finalizare || '—'}
           </div>
         )}
 
         {c.status_curatenie === 'in progres' && (
-          <div style={{ background:'#f8f9fa', borderRadius:8, padding:'10px 12px', marginTop:8 }}>
+          <div style={{ background:'#f8f9fa', borderRadius: 12, padding:'10px 12px', marginTop:8 }}>
             {/* Lenjerii */}
             <div style={{ marginBottom:14, paddingBottom:12, borderBottom:'1px solid #eee' }}>
               <div style={{ fontSize:11, fontWeight:600, color:'#555', marginBottom:8 }}>
                 🛏 Nr. lenjerii schimbate:
-                {nrLen && <span style={{ marginLeft:8, background:'#375623', color:'#fff', padding:'1px 8px', borderRadius:10, fontSize:10 }}>{nrLen} set{nrLen>1?'uri':''} = {Math.round(nrLen*KG_PER_SET*10)/10} kg</span>}
+                {nrLen && <span style={{ marginLeft:8, background:'#375623', color:'#fff', padding:'1px 8px', borderRadius: 14, fontSize:10 }}>{nrLen} set{nrLen>1?'uri':''} = {Math.round(nrLen*KG_PER_SET*10)/10} kg</span>}
               </div>
               <div style={{ display:'flex', gap:8 }}>
                 {NR_LENJERII.map(n => (
@@ -491,7 +491,7 @@ export default function CuratenIePage() {
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
               <div style={{ fontSize:11, color:'#888' }}>{done}/{checklist.length} puncte bifate</div>
               <button onClick={() => bifezaToate(c.id, checklist)}
-                style={{ fontSize:11, padding:'2px 10px', borderRadius:6, border:'1px solid #375623', background:allDone?'#E2EFDA':'#fff', color:'#375623', cursor:'pointer', fontWeight:600 }}>
+                style={{ fontSize:11, padding:'2px 10px', borderRadius: 10, border:'1px solid #375623', background:allDone?'#E2EFDA':'#fff', color:'#375623', cursor:'pointer', fontWeight:600 }}>
                 {allDone ? '✓ Toate bifate' : 'Bifează toate'}
               </button>
             </div>
@@ -548,11 +548,11 @@ export default function CuratenIePage() {
         <div style={{ background:'#EBF1FB', border:'1px solid #90B8E8', borderRadius:12, padding:'14px 16px', marginBottom:14 }}>
           <div style={{ fontSize:12, color:'#1F3864', fontWeight:600, marginBottom:8 }}>📊 Calculat automat din curățeniile de azi</div>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-            <div style={{ background:'#fff', borderRadius:8, padding:'10px 12px', textAlign:'center' }}>
+            <div style={{ background:'#fff', borderRadius: 12, padding:'10px 12px', textAlign:'center' }}>
               <div style={{ fontSize:24, fontWeight:700, color:'#1F3864' }}>{seturiAuto}</div>
               <div style={{ fontSize:11, color:'#888' }}>seturi lenjerie</div>
             </div>
-            <div style={{ background:'#fff', borderRadius:8, padding:'10px 12px', textAlign:'center' }}>
+            <div style={{ background:'#fff', borderRadius: 12, padding:'10px 12px', textAlign:'center' }}>
               <div style={{ fontSize:24, fontWeight:700, color:'#1F3864' }}>{kgAuto} kg</div>
               <div style={{ fontSize:11, color:'#888' }}>total de spălat</div>
             </div>
@@ -564,17 +564,17 @@ export default function CuratenIePage() {
             <div>
               <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block', fontWeight:600 }}>Nr. seturi</label>
               <input type="number" min="0" value={inputSeturi} onChange={e => { setInputSeturi(e.target.value); if(e.target.value) setInputKg(String(Math.round(parseFloat(e.target.value)*KG_PER_SET*10)/10)) }}
-                placeholder={String(seturiAuto)} style={{ width:'100%', padding:'8px 10px', fontSize:16, fontWeight:700, border:'1.5px solid #ddd', borderRadius:8, outline:'none', textAlign:'center' }} />
+                placeholder={String(seturiAuto)} style={{ width:'100%', padding:'8px 10px', fontSize:16, fontWeight:700, border:'1.5px solid #ddd', borderRadius: 12, outline:'none', textAlign:'center' }} />
             </div>
             <div>
               <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block', fontWeight:600 }}>Total kg</label>
               <input type="number" min="0" step="0.1" value={inputKg} onChange={e => { setInputKg(e.target.value); if(e.target.value) setInputSeturi(String(Math.round(parseFloat(e.target.value)/KG_PER_SET))) }}
-                placeholder={String(kgAuto)} style={{ width:'100%', padding:'8px 10px', fontSize:16, fontWeight:700, border:'1.5px solid #ddd', borderRadius:8, outline:'none', textAlign:'center' }} />
+                placeholder={String(kgAuto)} style={{ width:'100%', padding:'8px 10px', fontSize:16, fontWeight:700, border:'1.5px solid #ddd', borderRadius: 12, outline:'none', textAlign:'center' }} />
             </div>
           </div>
           <div onClick={() => setToateGata(p=>!p)}
-            style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', borderRadius:10, border:`2px solid ${toateGata?'#375623':'#ddd'}`, background:toateGata?'#E2EFDA':'#f8f9fa', cursor:'pointer', marginBottom:14 }}>
-            <div style={{ width:28, height:28, borderRadius:8, border:`2px solid ${toateGata?'#375623':'#ccc'}`, background:toateGata?'#375623':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:16, color:'#fff' }}>
+            style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', borderRadius: 14, border:`2px solid ${toateGata?'#375623':'#ddd'}`, background:toateGata?'#E2EFDA':'#f8f9fa', cursor:'pointer', marginBottom:14 }}>
+            <div style={{ width:28, height:28, borderRadius: 12, border:`2px solid ${toateGata?'#375623':'#ccc'}`, background:toateGata?'#375623':'#fff', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:16, color:'#fff' }}>
               {toateGata && '✓'}
             </div>
             <div>
@@ -583,7 +583,7 @@ export default function CuratenIePage() {
             </div>
           </div>
           <button onClick={salvezaSpalatorie} disabled={spalLoading}
-            style={{ width:'100%', padding:'12px', background:spalSaved?'#375623':'#1F3864', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:600, cursor:'pointer' }}>
+            style={{ width:'100%', padding:'12px', background:spalSaved?'#375623':'#1F3864', color:'#fff', border:'none', borderRadius: 14, fontSize:14, fontWeight:600, cursor:'pointer' }}>
             {spalLoading ? 'Se salvează...' : spalSaved ? '✅ Salvat!' : '💾 Salvează raportul de azi'}
           </button>
         </div>
@@ -649,7 +649,7 @@ export default function CuratenIePage() {
           <div style={{ fontSize:16, fontWeight:700 }}>🧹 {nume || 'Curățenie EZEL'}</div>
           <div style={{ fontSize:11, opacity:.8 }}>{new Date().toLocaleDateString('ro-RO',{weekday:'long',day:'numeric',month:'long'})}</div>
         </div>
-        <button style={{ padding:'5px 12px', background:'rgba(255,255,255,.2)', border:'1px solid rgba(255,255,255,.35)', color:'#fff', borderRadius:7, cursor:'pointer', fontSize:12 }}
+        <button style={{ padding:'5px 12px', background:'rgba(255,255,255,.2)', border:'1px solid rgba(255,255,255,.35)', color:'#fff', borderRadius: 12, cursor:'pointer', fontSize:12 }}
           onClick={handleLogout}>Ieși</button>
       </div>
 
@@ -663,7 +663,7 @@ export default function CuratenIePage() {
                 <div style={{ fontSize:11, color:'#aaa' }}>Apasă butonul pentru a începe ziua</div>
               </div>
               <button onClick={clockIn} disabled={clockLoading}
-                style={{ padding:'10px 20px', background:'#375623', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer' }}>
+                style={{ padding:'10px 20px', background:'#375623', color:'#fff', border:'none', borderRadius: 14, fontSize:13, fontWeight:700, cursor:'pointer' }}>
                 {clockLoading ? '...' : '▶ Clock In'}
               </button>
             </div>
@@ -674,7 +674,7 @@ export default function CuratenIePage() {
                 <div style={{ fontSize:11, color:'#888' }}>Apasă când termini ziua</div>
               </div>
               <button onClick={clockOut} disabled={clockLoading}
-                style={{ padding:'10px 20px', background:'#c0392b', color:'#fff', border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer' }}>
+                style={{ padding:'10px 20px', background:'#c0392b', color:'#fff', border:'none', borderRadius: 14, fontSize:13, fontWeight:700, cursor:'pointer' }}>
                 {clockLoading ? '...' : '⏹ Clock Out'}
               </button>
             </div>
@@ -718,7 +718,7 @@ export default function CuratenIePage() {
                 <div style={{ fontSize:48, marginBottom:12 }}>⏳</div>
                 <div style={{ fontSize:16, fontWeight:700, color:'#1F3864', marginBottom:8 }}>Propunere trimisă!</div>
                 <div style={{ fontSize:13, color:'#888', marginBottom:20 }}>Managerul va aproba sau respinge amânarea pentru AP {modalAman.nr_apt}.</div>
-                <button style={{ padding:'10px 24px', background:'#1F3864', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:600, cursor:'pointer' }}
+                <button style={{ padding:'10px 24px', background:'#1F3864', color:'#fff', border:'none', borderRadius: 14, fontSize:14, fontWeight:600, cursor:'pointer' }}
                   onClick={() => setModalAman(null)}>Închide</button>
               </div>
             ) : (
@@ -730,20 +730,20 @@ export default function CuratenIePage() {
                   </div>
                   <button onClick={() => setModalAman(null)} style={{ width:30, height:30, borderRadius:'50%', border:'1px solid #eee', background:'#f5f5f5', cursor:'pointer', fontSize:16 }}>✕</button>
                 </div>
-                <div style={{ background:'#f8f9fa', borderRadius:8, padding:'8px 10px', marginBottom:14, fontSize:12, color:'#666' }}>
+                <div style={{ background:'#f8f9fa', borderRadius: 12, padding:'8px 10px', marginBottom:14, fontSize:12, color:'#666' }}>
                   Data curentă: <strong>{modalAman.data_programata}</strong>
                 </div>
                 <div style={{ marginBottom:12 }}>
                   <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block', fontWeight:600 }}>Data nouă propusă *</label>
                   <input type="date" value={amanData} onChange={e => setAmanData(e.target.value)}
                     min={new Date().toISOString().split('T')[0]}
-                    style={{ width:'100%', padding:'7px 9px', fontSize:13, border:'1.5px solid #ddd', borderRadius:8, outline:'none' }} />
+                    style={{ width:'100%', padding:'7px 9px', fontSize:13, border:'1.5px solid #ddd', borderRadius: 12, outline:'none' }} />
                 </div>
                 <div style={{ marginBottom:12 }}>
                   <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block', fontWeight:600 }}>Motiv *</label>
                   {MOTIVE_AMANARE.map(m => (
                     <div key={m} onClick={() => setAmanMotiv(m)}
-                      style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:8, border:`1.5px solid ${amanMotiv===m?'#1F3864':'#eee'}`, background:amanMotiv===m?'#EBF1FB':'#fff', cursor:'pointer', marginBottom:5 }}>
+                      style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius: 12, border:`1.5px solid ${amanMotiv===m?'#1F3864':'#eee'}`, background:amanMotiv===m?'#EBF1FB':'#fff', cursor:'pointer', marginBottom:5 }}>
                       <div style={{ width:16, height:16, borderRadius:'50%', border:`2px solid ${amanMotiv===m?'#1F3864':'#ccc'}`, background:amanMotiv===m?'#1F3864':'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                         {amanMotiv===m && <div style={{ width:6, height:6, borderRadius:'50%', background:'#fff' }}></div>}
                       </div>
@@ -752,15 +752,15 @@ export default function CuratenIePage() {
                   ))}
                   {amanMotiv === 'Alt motiv' && (
                     <input value={amanAltMotiv} onChange={e => setAmanAltMotiv(e.target.value)} placeholder="Descrie motivul..."
-                      style={{ width:'100%', padding:'7px 9px', fontSize:13, border:'1.5px solid #ddd', borderRadius:8, outline:'none', marginTop:4 }} />
+                      style={{ width:'100%', padding:'7px 9px', fontSize:13, border:'1.5px solid #ddd', borderRadius: 12, outline:'none', marginTop:4 }} />
                   )}
                 </div>
                 <div style={{ display:'flex', gap:8, marginTop:8 }}>
                   <button onClick={trimitePropunereAmanare} disabled={amanLoading||!amanData}
-                    style={{ flex:1, padding:'11px', background:'#1F3864', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:600, cursor:'pointer', opacity:amanLoading||!amanData?0.5:1 }}>
+                    style={{ flex:1, padding:'11px', background:'#1F3864', color:'#fff', border:'none', borderRadius: 14, fontSize:14, fontWeight:600, cursor:'pointer', opacity:amanLoading||!amanData?0.5:1 }}>
                     {amanLoading ? 'Se trimite...' : '📅 Trimite propunere'}
                   </button>
-                  <button onClick={() => setModalAman(null)} style={{ padding:'11px 16px', border:'1px solid #ddd', background:'#fff', borderRadius:10, fontSize:14, cursor:'pointer' }}>Anulează</button>
+                  <button onClick={() => setModalAman(null)} style={{ padding:'11px 16px', border:'1px solid #ddd', background:'#fff', borderRadius: 14, fontSize:14, cursor:'pointer' }}>Anulează</button>
                 </div>
               </>
             )}
@@ -777,7 +777,7 @@ export default function CuratenIePage() {
               <div style={{ textAlign:'center', padding:'20px 0' }}>
                 <div style={{ fontSize:52, marginBottom:12 }}>✅</div>
                 <div style={{ fontSize:16, fontWeight:700, color:'#375623', marginBottom:8 }}>Problemă raportată!</div>
-                <button style={{ padding:'10px 24px', background:'#375623', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:600, cursor:'pointer' }}
+                <button style={{ padding:'10px 24px', background:'#375623', color:'#fff', border:'none', borderRadius: 14, fontSize:14, fontWeight:600, cursor:'pointer' }}
                   onClick={() => setModalMent(null)}>Închide</button>
               </div>
             ) : (
@@ -792,30 +792,30 @@ export default function CuratenIePage() {
                 <div style={{ marginBottom:12 }}>
                   <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block', fontWeight:600 }}>Descrie problema *</label>
                   <textarea value={descriere} onChange={e => setDescriere(e.target.value)} placeholder="Ex: Bec ars în baie, robinet picură..."
-                    style={{ width:'100%', padding:'8px 10px', fontSize:13, border:'1.5px solid #ddd', borderRadius:8, outline:'none', minHeight:90, resize:'vertical', fontFamily:'inherit' }} />
+                    style={{ width:'100%', padding:'8px 10px', fontSize:13, border:'1.5px solid #ddd', borderRadius: 12, outline:'none', minHeight:90, resize:'vertical', fontFamily:'inherit' }} />
                 </div>
                 <div style={{ marginBottom:16 }}>
                   <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block', fontWeight:600 }}>Fotografie (opțional)</label>
                   <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={selecteazaFoto} style={{ display:'none' }} />
                   {previzualizare ? (
                     <div style={{ position:'relative' }}>
-                      <img src={previzualizare} alt="prev" style={{ width:'100%', borderRadius:8, maxHeight:200, objectFit:'cover' }} />
+                      <img src={previzualizare} alt="prev" style={{ width:'100%', borderRadius: 12, maxHeight:200, objectFit:'cover' }} />
                       <button onClick={() => { setFotografie(null); setPrevizualizare(null); setMarimeFisier(null); fileRef.current.value='' }}
                         style={{ position:'absolute', top:6, right:6, width:28, height:28, borderRadius:'50%', background:'rgba(0,0,0,.6)', color:'#fff', border:'none', cursor:'pointer', fontSize:14 }}>✕</button>
                     </div>
                   ) : (
                     <button onClick={() => fileRef.current.click()}
-                      style={{ width:'100%', padding:'12px', border:'1.5px dashed #ddd', borderRadius:8, background:'#fafafa', cursor:'pointer', fontSize:13, color:'#888', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
+                      style={{ width:'100%', padding:'12px', border:'1.5px dashed #ddd', borderRadius: 12, background:'#fafafa', cursor:'pointer', fontSize:13, color:'#888', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}>
                       📷 Adaugă fotografie
                     </button>
                   )}
                 </div>
                 <div style={{ display:'flex', gap:8 }}>
                   <button onClick={trimiteMentenanta} disabled={trimitere||!descriere.trim()}
-                    style={{ flex:1, padding:'11px', background:descriere.trim()?'#c0392b':'#aaa', color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:600, cursor:descriere.trim()?'pointer':'not-allowed' }}>
+                    style={{ flex:1, padding:'11px', background:descriere.trim()?'#c0392b':'#aaa', color:'#fff', border:'none', borderRadius: 14, fontSize:14, fontWeight:600, cursor:descriere.trim()?'pointer':'not-allowed' }}>
                     {trimitere ? 'Se trimite...' : '🔧 Trimite raport'}
                   </button>
-                  <button onClick={() => setModalMent(null)} style={{ padding:'11px 16px', border:'1px solid #ddd', background:'#fff', borderRadius:10, fontSize:14, cursor:'pointer' }}>Anulează</button>
+                  <button onClick={() => setModalMent(null)} style={{ padding:'11px 16px', border:'1px solid #ddd', background:'#fff', borderRadius: 14, fontSize:14, cursor:'pointer' }}>Anulează</button>
                 </div>
               </>
             )}
