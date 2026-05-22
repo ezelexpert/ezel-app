@@ -706,7 +706,7 @@ export default function CuratenIePage() {
 
       <div style={{ padding:14, maxWidth:600, margin:'0 auto' }}>
         {/* Blocare curatenii daca nu e pontata */}
-        {user?.rol !== 'admin' && !esteIntrată && tab !== 2 && tab !== 3 && (
+        {user?.rol !== 'admin' && !esteIntrată && tab !== 3 && (
           <div style={{ textAlign:'center', padding:'48px 24px' }}>
             <div style={{ fontSize:48, marginBottom:16 }}>🔒</div>
             <div style={{ fontSize:16, fontWeight:600, color:'#333', marginBottom:8 }}>
@@ -720,7 +720,7 @@ export default function CuratenIePage() {
             </div>
           </div>
         )}
-        {(user?.rol === 'admin' || esteIntrată || tab === 2 || tab === 3) && (
+        {(user?.rol === 'admin' || esteIntrată || tab === 3) && (
         <>
         {tab === 2 ? renderSpalatorie() :
           loading ? <div style={{ textAlign:'center', padding:40, color:'#aaa' }}>Se încarcă...</div>
@@ -732,30 +732,48 @@ export default function CuratenIePage() {
                 <div style={{ fontSize:13 }}>Nicio curățenie finalizată încă.</div>
               </div>
             ) : (() => {
-              // Grupare pe data_programata
-              const byDate = {}
+              // Grupare pe saptamana
+              function getSaptamana(dateStr) {
+                const d = new Date(dateStr + 'T12:00:00')
+                const zi = d.getDay() === 0 ? 6 : d.getDay() - 1 // 0=luni
+                const luni = new Date(d)
+                luni.setDate(d.getDate() - zi)
+                luni.setHours(0,0,0,0)
+                const vineri = new Date(luni)
+                vineri.setDate(luni.getDate() + 4)
+                return {
+                  key: luni.toISOString().split('T')[0],
+                  label: `${luni.toLocaleDateString('ro-RO',{day:'numeric',month:'long'})} — ${vineri.toLocaleDateString('ro-RO',{day:'numeric',month:'long',year:'numeric'})}`
+                }
+              }
+              const bySapt = {}
               finalizate.forEach(c => {
                 const d = c.data_finalizare?.split('T')[0] || c.data_programata || '—'
-                if (!byDate[d]) byDate[d] = []
-                byDate[d].push(c)
+                const s = getSaptamana(d)
+                if (!bySapt[s.key]) bySapt[s.key] = { label: s.label, items: [] }
+                bySapt[s.key].items.push(c)
               })
-              // Sortare date descendent (cea mai recenta prima)
-              return Object.keys(byDate)
+              return Object.keys(bySapt)
                 .sort((a, b) => b.localeCompare(a))
-                .map(data => (
-                  <div key={data} style={{ marginBottom: 20 }}>
+                .map(key => (
+                  <div key={key} style={{ marginBottom: 24 }}>
                     <div style={{ fontSize:12, fontWeight:600, color:'#94A3B8', textTransform:'uppercase',
-                      letterSpacing:'.06em', marginBottom:8, paddingBottom:6,
+                      letterSpacing:'.06em', marginBottom:8, paddingBottom:8,
                       borderBottom:'1px solid #E9EDF4', display:'flex', alignItems:'center', gap:6 }}>
                       <span>📅</span>
-                      <span>{new Date(data+'T12:00:00').toLocaleDateString('ro-RO',{weekday:'long',day:'numeric',month:'long'})}</span>
+                      <span>{bySapt[key].label}</span>
                       <span style={{ marginLeft:'auto', background:'#E8F7EF', color:'#1A7A4A',
                         padding:'2px 8px', borderRadius:99, fontSize:11 }}>
-                        {byDate[data].length} finalizate
+                        {bySapt[key].items.length} finalizate
                       </span>
                     </div>
-                    {byDate[data]
-                      .sort((a,b) => (parseInt(a.nr_apt)||999) - (parseInt(b.nr_apt)||999))
+                    {bySapt[key].items
+                      .sort((a,b) => {
+                        const dA = a.data_finalizare?.split('T')[0] || a.data_programata || ''
+                        const dB = b.data_finalizare?.split('T')[0] || b.data_programata || ''
+                        if (dA !== dB) return dA > dB ? 1 : -1
+                        return (parseInt(a.nr_apt)||999) - (parseInt(b.nr_apt)||999)
+                      })
                       .map(renderCard)}
                   </div>
                 ))
