@@ -19,6 +19,30 @@ import PontajTab from './PontajTab'
 import { checkSiRuleazaVineri, genereazaSaptamana } from '../lib/autoScheduler'
 import { getNume } from '../lib/auth'
 
+// ── Normalizeaza data la YYYY-MM-DD ──────────────────────────
+function normalizeData(d) {
+  if (!d || !d.trim()) return ''
+  const s = d.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s // deja corect
+  const an = new Date().getFullYear()
+  if (/^\d{2}\.\d{2}$/.test(s)) {
+    // 22.05 -> 2026-05-22
+    const [zi, luna] = s.split('.')
+    return `${an}-${luna.padStart(2,'0')}-${zi.padStart(2,'0')}`
+  }
+  if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(s)) {
+    // 22.05.2026 -> 2026-05-22
+    const [zi, luna, a] = s.split('.')
+    return `${a}-${luna.padStart(2,'0')}-${zi.padStart(2,'0')}`
+  }
+  if (/^\d{1,2}\.\d{1,2}$/.test(s)) {
+    // 2.5 -> 2026-05-02
+    const [zi, luna] = s.split('.')
+    return `${an}-${luna.padStart(2,'0')}-${zi.padStart(2,'0')}`
+  }
+  return s
+}
+
 // ── Fuzzy matching firme ─────────────────────────────────────
 function similaritate(a, b) {
   if (!a || !b) return 0
@@ -108,31 +132,12 @@ export default function AdminPage() {
       const in5Zile = new Date(); in5Zile.setDate(in5Zile.getDate() + 5)
       const in5ZileStr = in5Zile.toISOString().split('T')[0]
 
-      // Normalizeaza data_elib la format YYYY-MM-DD
-      function normalizeazaData(d) {
-        if (!d) return null
-        if (!d.includes('.')) return d // deja YYYY-MM-DD
-        const parts = d.split('.')
-        const an = new Date().getFullYear()
-        if (parts.length === 3) {
-          // DD.MM.YYYY
-          return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`
-        }
-        if (parts.length === 2) {
-          // DD.MM - adauga anul curent
-          // Daca luna e in urma, probabil e anul urmator
-          const luna = parseInt(parts[1])
-          const lunaAzi = new Date().getMonth() + 1
-          const anFinal = luna < lunaAzi - 1 ? an + 1 : an
-          return `${anFinal}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`
-        }
-        return d
-      }
+      // Foloseste normalizeData global
 
       // Auto elib cu 5 zile inainte
       for (const apt of a.filter(x => {
         if (x.status !== 'activ' || !x.data_elib) return false
-        const dn = normalizeazaData(x.data_elib)
+        const dn = normalizeData(x.data_elib)
         return dn && dn >= aziStr && dn <= in5ZileStr
       })) {
         await updateApartament(apt.nr, { status: 'elib' })
@@ -142,7 +147,7 @@ export default function AdminPage() {
       // Auto liber daca data_elib a trecut
       const deLiberat = a.filter(apt => {
         if (apt.status !== 'elib' || !apt.data_elib) return false
-        const dataNorm = normalizeazaData(apt.data_elib)
+        const dataNorm = normalizeData(apt.data_elib)
         return dataNorm && dataNorm < aziStr
       })
       if (deLiberat.length > 0) {
@@ -153,7 +158,7 @@ export default function AdminPage() {
 
       // In ziua eliberarii cu curatenie finalizata azi -> trece la liber
       const deTrecLaLiber = a.filter(apt =>
-        apt.status === 'elib' && normalizeazaData(apt.data_elib) === aziStr &&
+        apt.status === 'elib' && normalizeData(apt.data_elib) === aziStr &&
         c.some(cur => cur.nr_apt === apt.nr && cur.status_curatenie === 'finalizata' && cur.data_programata === aziStr)
       )
       if (deTrecLaLiber.length > 0) {
@@ -230,8 +235,9 @@ export default function AdminPage() {
     if (fields.tip_serviciu !== 'chirie') { fields.pret_utilitati = 0; fields.utilitati_tip = 'fix' }
     // Firma completata = Ocupat automat
     if (fields.firma && fields.firma.trim()) { fields.status = 'activ' }
-    // Data eliberare = status Elibereaza automat
+    // Normalizeaza data_elib la YYYY-MM-DD
     if (fields.data_elib && fields.data_elib.trim()) {
+      fields.data_elib = normalizeData(fields.data_elib)
       fields.status = 'elib'
     }
     // Nr nopti + checkin = calculeaza data elib automata
@@ -333,7 +339,10 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
     if (!editData.tip_serviciu) editData.tip_serviciu = 'cazare'
     let status = editData.status || 'liber'
     if (editData.firma && editData.firma.trim() && status === 'liber') status = 'activ'
-    if (editData.data_elib && editData.data_elib.trim()) status = 'elib'
+    if (editData.data_elib && editData.data_elib.trim()) {
+      editData.data_elib = normalizeData(editData.data_elib)
+      status = 'elib'
+    }
     const apt = {
       nr: editData.nr, tip: editData.tip||'simplu', firma: editData.firma||'', nota: editData.nota||'',
       status, pret: editData.pret||0, plata: editData.plata||'OP',
