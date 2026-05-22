@@ -43,6 +43,11 @@ function normalizeData(d) {
   return s
 }
 
+// ── Helper data string local ─────────────────────────────────
+function dateStrLocal(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0')
+}
+
 // ── Fuzzy matching firme ─────────────────────────────────────
 function similaritate(a, b) {
   if (!a || !b) return 0
@@ -233,9 +238,9 @@ export default function AdminPage() {
         if (fields.status !== 'special' && (!fields.pret || Number(fields.pret) <= 0)) { alert('Pretul este obligatoriu!'); return }
     if (!fields.tip_serviciu) fields.tip_serviciu = 'cazare'
     if (fields.tip_serviciu !== 'chirie') { fields.pret_utilitati = 0; fields.utilitati_tip = 'fix' }
-    // Firma completata = Ocupat automat
+    // Firma completata = Ocupat automat (mereu)
     if (fields.firma && fields.firma.trim()) { fields.status = 'activ' }
-    // Normalizeaza data_elib la YYYY-MM-DD
+    // Normalizeaza data_elib la YYYY-MM-DD - suprascrie statusul daca e data elib
     if (fields.data_elib && fields.data_elib.trim()) {
       fields.data_elib = normalizeData(fields.data_elib)
       fields.status = 'elib'
@@ -317,13 +322,24 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
         const { data: genVechi } = await supabase.from('curatenie').select('id')
           .eq('nr_apt', nr).eq('tip_curatenie', 'generala').neq('status_curatenie', 'finalizata')
         if (genVechi?.length > 0) for (const c of genVechi) await stergeCuratenie(c.id)
-        await programeazaCuratenie({ data_programata: fields.data_elib, nr_apt: nr, tip_apt: fields.tip||aptCurent.tip, firma: fields.firma||aptCurent.firma, tip_curatenie: 'generala', observatii: 'Auto la modificare elib' })
+        // Daca data elib e weekend -> urmatoarea zi lucratoare
+        let dataGenElib = fields.data_elib
+        const dElib = new Date(fields.data_elib + 'T12:00:00')
+        if (dElib.getDay() === 0) { dElib.setDate(dElib.getDate() + 1); dataGenElib = dateStrLocal(dElib) }
+        else if (dElib.getDay() === 6) { dElib.setDate(dElib.getDate() + 2); dataGenElib = dateStrLocal(dElib) }
+        await programeazaCuratenie({ data_programata: dataGenElib, nr_apt: nr, tip_apt: fields.tip||aptCurent.tip, firma: fields.firma||aptCurent.firma, tip_curatenie: 'generala', observatii: 'Auto la modificare elib' })
       }
       // Eliberare spontana azi
       if (fields.data_elib === aziNow && aptCurent.data_elib !== aziNow) {
         const { data: genAzi } = await supabase.from('curatenie').select('id')
           .eq('nr_apt', nr).eq('data_programata', aziNow).eq('tip_curatenie', 'generala')
-        if (!genAzi?.length) await programeazaCuratenie({ data_programata: aziNow, nr_apt: nr, tip_apt: fields.tip||aptCurent.tip, firma: fields.firma||aptCurent.firma, tip_curatenie: 'generala', observatii: 'Eliberare spontana' })
+        if (!genAzi?.length) {
+          const dSpon = new Date(aziNow + 'T12:00:00')
+          let dataSpon = aziNow
+          if (dSpon.getDay() === 0) { dSpon.setDate(dSpon.getDate() + 1); dataSpon = dateStrLocal(dSpon) }
+          else if (dSpon.getDay() === 6) { dSpon.setDate(dSpon.getDate() + 2); dataSpon = dateStrLocal(dSpon) }
+          await programeazaCuratenie({ data_programata: dataSpon, nr_apt: nr, tip_apt: fields.tip||aptCurent.tip, firma: fields.firma||aptCurent.firma, tip_curatenie: 'generala', observatii: 'Eliberare spontana' })
+        }
       }
     }
 
@@ -604,6 +620,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
         {tab === 2 && (
           <div>
             <div className="srch-row"><input placeholder="Caută firmă..." value={srchFirma} onChange={e => setSrchFirma(e.target.value)} /></div>
+            {/* Firme active */}
             {Object.entries(byFirma)
               .filter(([n]) => !srchFirma || n.toLowerCase().includes(srchFirma.toLowerCase()))
               .sort((a,b) => b[1].apts.length - a[1].apts.length)
@@ -657,6 +674,37 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
                   </div>
                 )
               })}
+            {/* Foste firme - din istoric, fara apartamente active */}
+            {(() => {
+              const firmeActive = new Set(Object.keys(byFirma))
+              const fosteFirme = [...new Set(istoric.map(r => r.firma))]
+                .filter(f => !firmeActive.has(f) && (!srchFirma || f.toLowerCase().includes(srchFirma.toLowerCase())))
+              if (!fosteFirme.length) return null
+              return (
+                <div style={{ marginTop: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>
+                    📋 Foste firme
+                  </div>
+                  {fosteFirme.map(f => {
+                    const rows = istoric.filter(r => r.firma === f)
+                    const ultimaData = rows.sort((a,b) => new Date(b.data_end||0) - new Date(a.data_end||0))[0]?.data_end
+                    const totalVenit = rows.reduce((s,r) => s + Number(r.total_estimat||0), 0)
+                    return (
+                      <div key={f} className="card" style={{ opacity: .7, borderStyle: 'dashed' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                          <div className="firma-av" style={{ background:'#F1F5F9', color:'#94A3B8' }}>{f.substring(0,2).toUpperCase()}</div>
+                          <div style={{ flex:1 }}>
+                            <div style={{ fontWeight:600, color:'#475569' }}>{f}</div>
+                            <div style={{ fontSize:11, color:'#94A3B8' }}>Ultimul sejur: {ultimaData || '—'} · {rows.length} perioade</div>
+                          </div>
+                          <span className="badge bk">{totalVenit.toLocaleString()} RON total</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </div>
         )}
 
