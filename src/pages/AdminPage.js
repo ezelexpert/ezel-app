@@ -108,13 +108,23 @@ export default function AdminPage() {
       const in5Zile = new Date(); in5Zile.setDate(in5Zile.getDate() + 5)
       const in5ZileStr = in5Zile.toISOString().split('T')[0]
 
-      // Normalizeaza data_elib (poate fi in format DD.MM.YYYY sau YYYY-MM-DD)
+      // Normalizeaza data_elib la format YYYY-MM-DD
       function normalizeazaData(d) {
         if (!d) return null
-        if (d.includes('.')) {
-          const parts = d.split('.')
-          if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`
-          if (parts.length === 2) return `${new Date().getFullYear()}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`
+        if (!d.includes('.')) return d // deja YYYY-MM-DD
+        const parts = d.split('.')
+        const an = new Date().getFullYear()
+        if (parts.length === 3) {
+          // DD.MM.YYYY
+          return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`
+        }
+        if (parts.length === 2) {
+          // DD.MM - adauga anul curent
+          // Daca luna e in urma, probabil e anul urmator
+          const luna = parseInt(parts[1])
+          const lunaAzi = new Date().getMonth() + 1
+          const anFinal = luna < lunaAzi - 1 ? an + 1 : an
+          return `${anFinal}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`
         }
         return d
       }
