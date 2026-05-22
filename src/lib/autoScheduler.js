@@ -42,19 +42,28 @@ function urmatoareaZiLucratoare(d) {
   return r
 }
 
-// Cea mai apropiata zi luni sau vineri
+// Cea mai apropiata zi luni sau vineri - cauta in ambele directii
 function celMaiApropiataLuniSauVineri(d) {
   const r = new Date(d)
   r.setHours(0,0,0,0)
   const zi = r.getDay()
-  // Distante pana la luni (1) si vineri (5)
-  const paneLuni = zi <= 1 ? 1 - zi : 8 - zi
-  const paneVineri = zi <= 5 ? 5 - zi : 12 - zi
-  if (paneLuni <= paneVineri) {
-    return addZile(r, paneLuni)
-  } else {
-    return addZile(r, paneVineri)
-  }
+
+  // Daca e deja luni sau vineri, ramane
+  if (zi === 1 || zi === 5) return r
+
+  // Cauta in viitor
+  let viitor = new Date(r)
+  while (viitor.getDay() !== 1 && viitor.getDay() !== 5) viitor.setDate(viitor.getDate() + 1)
+
+  // Cauta in trecut
+  let trecut = new Date(r)
+  while (trecut.getDay() !== 1 && trecut.getDay() !== 5) trecut.setDate(trecut.getDate() - 1)
+
+  // Returneaza cel mai apropiat - preferinta pentru viitor la distante egale
+  const diffViitor = Math.abs(diffZile(r, viitor))
+  const diffTrecut = Math.abs(diffZile(trecut, r))
+
+  return diffViitor <= diffTrecut ? viitor : trecut
 }
 
 function isELM(firma) {
