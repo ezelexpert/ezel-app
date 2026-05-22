@@ -1,16 +1,16 @@
-import React, { useState, useMemo, useRef } from 'react'
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 
 const ZILE_VIZIBILE = 30
 const COL_W = 36
 const ROW_H = 44
-const LABEL_W = 120
+const LABEL_W = 130
 
 const ST_COLORS = {
-  activ:   { bg: '#1A3A6B', text: '#fff', light: '#EEF4FF' },
-  elib:    { bg: '#B91C1C', text: '#fff', light: '#FEE2E2' },
-  special: { bg: '#5B21B6', text: '#fff', light: '#EDE9FE' },
-  maint:   { bg: '#B45309', text: '#fff', light: '#FEF3C7' },
-  liber:   { bg: '#E2E8F0', text: '#94A3B8', light: '#F8FAFC' },
+  activ:   { bg: '#1A3A6B', text: '#fff' },
+  elib:    { bg: '#B91C1C', text: '#fff' },
+  special: { bg: '#5B21B6', text: '#fff' },
+  maint:   { bg: '#B45309', text: '#fff' },
+  chirie:  { bg: '#0F766E', text: '#fff' },
 }
 
 function addZile(d, n) {
@@ -33,22 +33,26 @@ function diffDays(a, b) {
 const LUNI_SC = ['Ian','Feb','Mar','Apr','Mai','Iun','Iul','Aug','Sep','Oct','Nov','Dec']
 const ZI_SC = ['Du','Lu','Ma','Mi','Jo','Vi','Sa']
 
-export default function ReservationTimeline({ apts, curatenii, onEditApt, onAddApt }) {
+export default function ReservationTimeline({ apts, curatenii, onEditApt, onAddApt, onNewReservation }) {
   const [startDate, setStartDate] = useState(() => {
     const d = new Date(); d.setHours(0,0,0,0)
-    d.setDate(d.getDate() - 3) // incepe cu 3 zile in urma
+    d.setDate(d.getDate() - 5)
     return d
   })
   const [srch, setSrch] = useState('')
   const [flt, setFlt] = useState('')
   const [tooltip, setTooltip] = useState(null)
-  const scrollRef = useRef()
+
+  // Drag selection state
+  const [drag, setDrag] = useState(null) // { aptNr, startDay, endDay, active }
+  const [selection, setSelection] = useState(null) // { aptNr, startDay, endDay }
+  const dragRef = useRef(null)
+
+  const azi = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d }, [])
 
   const zile = useMemo(() => {
     return Array.from({ length: ZILE_VIZIBILE }, (_, i) => addZile(startDate, i))
   }, [startDate])
-
-  const azi = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d }, [])
 
   const filteredApts = useMemo(() => {
     return apts.filter(a => {
@@ -62,37 +66,30 @@ export default function ReservationTimeline({ apts, curatenii, onEditApt, onAddA
     })
   }, [apts, srch, flt])
 
-  // Construieste segmentele de rezervare per apartament
   const segments = useMemo(() => {
     const map = {}
     const endDate = addZile(startDate, ZILE_VIZIBILE)
-
     filteredApts.forEach(apt => {
       const segs = []
       if (apt.status !== 'liber' && apt.status !== 'maint') {
-        // Calculeaza start si end vizibil
         const checkin = apt.data_checkin ? parseDate(apt.data_checkin) : null
         const elib = apt.data_elib ? parseDate(apt.data_elib) : null
-
-        const segStart = checkin || addZile(azi, -30) // daca nu stim, asumam de acum 30 zile
-        const segEnd = elib || addZile(azi, 60) // daca nu stie elib, asumam inca 60 zile
-
-        // Clip la fereastra vizibila
+        const segStart = checkin || addZile(azi, -60)
+        const segEnd = elib || addZile(azi, 60)
         const visStart = segStart < startDate ? startDate : segStart
         const visEnd = segEnd > endDate ? endDate : segEnd
-
         if (visStart < visEnd) {
-          const offsetDays = diffDays(startDate, visStart)
-          const lengthDays = diffDays(visStart, visEnd)
-
           segs.push({
             firma: apt.firma,
             status: apt.status,
+            tip_serviciu: apt.tip_serviciu,
             pret: apt.pret,
-            checkin: apt.data_checkin,
             elib: apt.data_elib,
-            offsetDays,
-            lengthDays,
+            checkin: apt.data_checkin,
+            offsetDays: diffDays(startDate, visStart),
+            lengthDays: diffDays(visStart, visEnd),
+            isStartClipped: segStart < startDate,
+            isEndClipped: segEnd > endDate,
             apt
           })
         }
@@ -102,7 +99,6 @@ export default function ReservationTimeline({ apts, curatenii, onEditApt, onAddA
     return map
   }, [filteredApts, startDate, azi])
 
-  // Curatenii per apt per zi
   const curMap = useMemo(() => {
     const m = {}
     curatenii.forEach(c => {
@@ -113,17 +109,47 @@ export default function ReservationTimeline({ apts, curatenii, onEditApt, onAddA
     return m
   }, [curatenii])
 
-  function navLeft() {
-    setStartDate(d => addZile(d, -7))
-  }
-  function navRight() {
-    setStartDate(d => addZile(d, 7))
-  }
-  function goToazi() {
-    const d = new Date(); d.setHours(0,0,0,0)
-    d.setDate(d.getDate() - 3)
-    setStartDate(d)
-  }
+  // Mouse handlers for drag selection
+  const handleMouseDown = useCallback((aptNr, dayIdx, e) => {
+    e.preventDefault()
+    setSelection(null)
+    setDrag({ aptNr, startDay: dayIdx, endDay: dayIdx, active: true })
+    dragRef.current = { aptNr, startDay: dayIdx }
+  }, [])
+
+  const handleMouseEnter = useCallback((aptNr, dayIdx) => {
+    if (!drag?.active || drag.aptNr !== aptNr) return
+    setDrag(prev => prev ? { ...prev, endDay: dayIdx } : null)
+  }, [drag])
+
+  const handleMouseUp = useCallback(() => {
+    if (!drag?.active) return
+    const start = Math.min(drag.startDay, drag.endDay)
+    const end = Math.max(drag.startDay, drag.endDay)
+    const apt = filteredApts.find(a => a.nr === drag.aptNr)
+
+    if (apt && end >= start) {
+      const checkinDate = addZile(startDate, start)
+      const elibDate = addZile(startDate, end + 1)
+      setSelection({ aptNr: drag.aptNr, startDay: start, endDay: end })
+      // Deschide modal cu datele pre-completate
+      if (onNewReservation) {
+        onNewReservation({
+          apt,
+          data_checkin: dateStr(checkinDate),
+          data_elib: dateStr(elibDate),
+          zile: end - start + 1
+        })
+      }
+    }
+    setDrag(null)
+  }, [drag, filteredApts, startDate, onNewReservation])
+
+  useEffect(() => {
+    const up = () => { if (drag?.active) handleMouseUp() }
+    window.addEventListener('mouseup', up)
+    return () => window.removeEventListener('mouseup', up)
+  }, [drag, handleMouseUp])
 
   const occ = apts.filter(a => a.status === 'activ').length
   const libre = apts.filter(a => a.status === 'liber').length
@@ -131,9 +157,19 @@ export default function ReservationTimeline({ apts, curatenii, onEditApt, onAddA
   const total = apts.filter(a => a.status !== 'maint').length
   const pctOcc = total > 0 ? Math.round(occ / total * 100) : 0
 
+  function getDragRange() {
+    if (!drag?.active) return null
+    return {
+      aptNr: drag.aptNr,
+      start: Math.min(drag.startDay, drag.endDay),
+      end: Math.max(drag.startDay, drag.endDay)
+    }
+  }
+  const dragRange = getDragRange()
+
   return (
-    <div style={{ fontFamily: 'inherit' }}>
-      {/* Stats bar */}
+    <div style={{ fontFamily: 'inherit', userSelect: 'none' }}>
+      {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 14 }}>
         {[
           { val: occ, lbl: 'Ocupate', color: '#1A3A6B', bg: '#EEF4FF' },
@@ -155,133 +191,156 @@ export default function ReservationTimeline({ apts, curatenii, onEditApt, onAddA
           style={{ flex: 1, minWidth: 160, height: 34, padding: '0 10px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 13, outline: 'none' }} />
         <select value={flt} onChange={e => setFlt(e.target.value)}
           style={{ height: 34, padding: '0 10px', border: '1.5px solid #E2E8F0', borderRadius: 8, fontSize: 12, background: '#fff' }}>
-          <option value="">Toate</option>
+          <option value="">Toate statusurile</option>
           <option value="activ">Ocupat</option>
           <option value="liber">Liber</option>
           <option value="elib">Eliberează</option>
           <option value="maint">Mentenanță</option>
         </select>
-        <button onClick={navLeft} style={{ height: 34, padding: '0 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 16 }}>◀</button>
-        <button onClick={goToazi} style={{ height: 34, padding: '0 12px', border: '1.5px solid #1A3A6B', borderRadius: 8, background: '#EEF4FF', color: '#1A3A6B', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Azi</button>
-        <button onClick={navRight} style={{ height: 34, padding: '0 12px', border: '1.5px solid #E2E8F0', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 16 }}>▶</button>
+        <button onClick={() => setStartDate(d => addZile(d, -7))}
+          style={{ height: 34, width: 34, border: '1.5px solid #E2E8F0', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 16 }}>◀</button>
+        <button onClick={() => { const d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-5); setStartDate(d) }}
+          style={{ height: 34, padding: '0 12px', border: '1.5px solid #1A3A6B', borderRadius: 8, background: '#EEF4FF', color: '#1A3A6B', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Azi</button>
+        <button onClick={() => setStartDate(d => addZile(d, 7))}
+          style={{ height: 34, width: 34, border: '1.5px solid #E2E8F0', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 16 }}>▶</button>
         <button onClick={() => onAddApt && onAddApt()}
           style={{ height: 34, padding: '0 14px', background: '#0F2344', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
           + Apt nou
         </button>
       </div>
 
-      {/* Timeline grid */}
-      <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid #E2E8F0', background: '#fff' }} ref={scrollRef}>
+      {/* Hint */}
+      <div style={{ fontSize: 11, color: '#94A3B8', marginBottom: 8 }}>
+        💡 Trage pe zilele libere pentru a adăuga o rezervare nouă. Click pe o rezervare existentă pentru a o edita.
+      </div>
+
+      {/* Timeline */}
+      <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid #E2E8F0', background: '#fff' }}>
         <div style={{ minWidth: LABEL_W + COL_W * ZILE_VIZIBILE }}>
 
-          {/* Header - luni */}
-          <div style={{ display: 'flex', borderBottom: '1px solid #E2E8F0', background: '#F8FAFC' }}>
-            <div style={{ width: LABEL_W, minWidth: LABEL_W, borderRight: '1px solid #E2E8F0', padding: '6px 10px', fontSize: 11, color: '#94A3B8', fontWeight: 600 }}>APARTAMENT</div>
+          {/* Header */}
+          <div style={{ display: 'flex', borderBottom: '1px solid #E2E8F0', background: '#F8FAFC', position: 'sticky', top: 0, zIndex: 10 }}>
+            <div style={{ width: LABEL_W, minWidth: LABEL_W, borderRight: '1px solid #E2E8F0', padding: '6px 10px', fontSize: 11, color: '#94A3B8', fontWeight: 600, letterSpacing: '.04em' }}>APARTAMENT</div>
             {zile.map((z, i) => {
-              const isFirst = i === 0 || z.getDate() === 1
+              const isWe = z.getDay() === 0 || z.getDay() === 6
+              const isAzi = z.toDateString() === azi.toDateString()
               return (
-                <div key={i} style={{ width: COL_W, minWidth: COL_W, textAlign: 'center', padding: '4px 0', fontSize: 10, borderRight: '0.5px solid #F1F5F9',
-                  background: z.getDay() === 0 || z.getDay() === 6 ? '#FFF8F8' : 'transparent',
-                  color: z.getDay() === 0 || z.getDay() === 6 ? '#FDA4AF' : '#0F2344',
-                  fontWeight: z.toDateString() === azi.toDateString() ? 700 : 400
-                }}>
-                  <div style={{ fontSize: 9, color: '#94A3B8' }}>{isFirst ? LUNI_SC[z.getMonth()] : ''}</div>
-                  <div style={{ fontSize: 11, fontWeight: z.toDateString() === azi.toDateString() ? 700 : 500 }}>{z.getDate()}</div>
-                  <div style={{ fontSize: 9, color: '#94A3B8' }}>{ZI_SC[z.getDay()]}</div>
+                <div key={i} style={{ width: COL_W, minWidth: COL_W, textAlign: 'center', padding: '4px 0',
+                  background: isAzi ? '#EEF4FF' : isWe ? '#FFF8F8' : 'transparent',
+                  borderRight: '0.5px solid #F1F5F9', borderBottom: isAzi ? '2px solid #1A3A6B' : 'none' }}>
+                  <div style={{ fontSize: 9, color: '#94A3B8', height: 12 }}>{i === 0 || z.getDate() === 1 ? LUNI_SC[z.getMonth()] : ''}</div>
+                  <div style={{ fontSize: 12, fontWeight: isAzi ? 700 : 500, color: isAzi ? '#1A3A6B' : isWe ? '#FDA4AF' : '#0F2344' }}>{z.getDate()}</div>
+                  <div style={{ fontSize: 9, color: isWe ? '#FDA4AF' : '#94A3B8' }}>{ZI_SC[z.getDay()]}</div>
                 </div>
               )
             })}
           </div>
 
           {/* Rows */}
-          {filteredApts.map((apt, ri) => {
+          {filteredApts.map((apt) => {
             const isDbl = apt.tip === 'dublu' || String(apt.nr).startsWith('D')
             const aptSegs = segments[apt.nr] || []
             const isLiber = apt.status === 'liber'
+            const isMaint = apt.status === 'maint'
+            const isChirie = apt.tip_serviciu === 'chirie'
 
             return (
-              <div key={apt.nr} style={{ display: 'flex', borderBottom: '0.5px solid #F1F5F9', background: isLiber ? 'rgba(232,247,239,.3)' : 'white', position: 'relative', height: ROW_H }}>
+              <div key={apt.nr} style={{ display: 'flex', borderBottom: '0.5px solid #F1F5F9', height: ROW_H, position: 'relative' }}>
                 {/* Label */}
-                <div style={{ width: LABEL_W, minWidth: LABEL_W, borderRight: '1px solid #E2E8F0', padding: '0 10px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', background: isLiber ? 'rgba(232,247,239,.4)' : '#FAFAFA' }}
+                <div style={{ width: LABEL_W, minWidth: LABEL_W, borderRight: '1px solid #E2E8F0',
+                  padding: '0 10px', display: 'flex', alignItems: 'center', gap: 8,
+                  cursor: 'pointer', background: isLiber ? 'rgba(232,247,239,.35)' : isMaint ? 'rgba(254,243,199,.35)' : '#FAFAFA',
+                  position: 'sticky', left: 0, zIndex: 5 }}
                   onClick={() => onEditApt && onEditApt(apt)}>
-                  <div style={{ width: 28, height: 28, borderRadius: 7, background: isDbl ? '#EDE9FE' : '#EEF4FF', color: isDbl ? '#5B21B6' : '#1A3A6B', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 7, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700,
+                    background: isDbl ? '#EDE9FE' : isLiber ? '#E8F7EF' : '#EEF4FF',
+                    color: isDbl ? '#5B21B6' : isLiber ? '#1A7A4A' : '#1A3A6B' }}>
                     {apt.nr}
                   </div>
-                  <div style={{ overflow: 'hidden' }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: '#0F2344', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {apt.firma || 'Liber'}
+                  <div style={{ overflow: 'hidden', flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#0F2344', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {apt.firma || (isLiber ? 'Liber' : isMaint ? 'Mentenanță' : '—')}
+                      {isChirie && <span style={{ fontSize: 9, background: '#CCFBF1', color: '#0F766E', padding: '1px 5px', borderRadius: 99, fontWeight: 600 }}>CHR</span>}
+                      {apt.prosop && <span style={{ fontSize: 9 }}>🛁</span>}
                     </div>
-                    <div style={{ fontSize: 10, color: '#94A3B8' }}>{apt.pret ? apt.pret + ' RON' : apt.status === 'maint' ? 'Mentenanță' : '—'}</div>
+                    <div style={{ fontSize: 10, color: '#94A3B8' }}>{apt.pret ? apt.pret + ' RON' : apt.nota || ''}</div>
                   </div>
                 </div>
 
-                {/* Celule zile - fundal */}
+                {/* Celule */}
                 <div style={{ display: 'flex', flex: 1, position: 'relative' }}>
                   {zile.map((z, zi) => {
                     const ds = dateStr(z)
                     const isWe = z.getDay() === 0 || z.getDay() === 6
                     const isAzi = z.toDateString() === azi.toDateString()
                     const curAzi = curMap[`${apt.nr}_${ds}`]
+                    const isDragSelected = dragRange && dragRange.aptNr === apt.nr && zi >= dragRange.start && zi <= dragRange.end
+                    const isOccupied = aptSegs.some(s => zi >= s.offsetDays && zi < s.offsetDays + s.lengthDays)
 
                     return (
-                      <div key={zi} style={{ width: COL_W, minWidth: COL_W, height: '100%', borderRight: '0.5px solid #F1F5F9', position: 'relative',
-                        background: isAzi ? 'rgba(14,165,233,.05)' : isWe ? 'rgba(253,164,175,.05)' : 'transparent' }}>
-                        {/* Indicator curatenie */}
-                        {curAzi && curAzi.length > 0 && (
-                          <div style={{ position: 'absolute', bottom: 2, left: '50%', transform: 'translateX(-50%)', width: 6, height: 6, borderRadius: '50%',
-                            background: curAzi[0].status_curatenie === 'finalizata' ? '#1A7A4A' : curAzi[0].tip_curatenie === 'generala' ? '#B91C1C' : '#1A3A6B' }}
-                            title={`Curățenie ${curAzi[0].tip_curatenie} - ${curAzi[0].status_curatenie}`} />
+                      <div key={zi}
+                        style={{ width: COL_W, minWidth: COL_W, height: '100%', position: 'relative',
+                          background: isDragSelected ? 'rgba(26,58,107,.15)' : isAzi ? 'rgba(14,165,233,.04)' : isWe ? 'rgba(253,164,175,.04)' : 'transparent',
+                          borderRight: '0.5px solid #F1F5F9',
+                          cursor: isOccupied ? 'default' : 'crosshair' }}
+                        onMouseDown={e => !isOccupied && handleMouseDown(apt.nr, zi, e)}
+                        onMouseEnter={() => handleMouseEnter(apt.nr, zi)}>
+                        {curAzi?.length > 0 && (
+                          <div style={{ position: 'absolute', bottom: 3, left: '50%', transform: 'translateX(-50%)', width: 5, height: 5, borderRadius: '50%',
+                            background: curAzi[0].status_curatenie === 'finalizata' ? '#1A7A4A' : curAzi[0].tip_curatenie === 'generala' ? '#B91C1C' : '#1A3A6B', zIndex: 3 }} />
                         )}
-                        {/* Linie azi */}
-                        {isAzi && <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 2, background: '#0EA5E9', opacity: .4 }} />}
+                        {isAzi && <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1.5, background: '#0EA5E9', opacity: .5, zIndex: 1, pointerEvents: 'none' }} />}
                       </div>
                     )
                   })}
 
                   {/* Bare rezervari */}
                   {aptSegs.map((seg, si) => {
-                    const colors = ST_COLORS[seg.status] || ST_COLORS.activ
-                    const left = seg.offsetDays * COL_W
-                    const width = Math.max(seg.lengthDays * COL_W - 4, COL_W - 4)
-                    const isStartVisible = seg.offsetDays >= 0
-                    const isEndVisible = seg.offsetDays + seg.lengthDays <= ZILE_VIZIBILE
-
+                    const colors = ST_COLORS[seg.tip_serviciu === 'chirie' ? 'chirie' : seg.status] || ST_COLORS.activ
+                    const left = seg.offsetDays * COL_W + 2
+                    const width = seg.lengthDays * COL_W - 4
                     return (
                       <div key={si}
                         onClick={() => onEditApt && onEditApt(seg.apt)}
-                        onMouseEnter={e => setTooltip({ apt: seg.apt, seg, x: e.clientX, y: e.clientY })}
+                        onMouseEnter={e => { e.stopPropagation(); setTooltip({ apt: seg.apt, seg, x: e.clientX, y: e.clientY }) }}
                         onMouseLeave={() => setTooltip(null)}
-                        style={{
-                          position: 'absolute',
-                          left: left + 2,
-                          top: 6,
-                          height: ROW_H - 12,
-                          width: width,
-                          background: colors.bg,
-                          borderRadius: `${isStartVisible ? 6 : 0}px ${isEndVisible ? 6 : 0}px ${isEndVisible ? 6 : 0}px ${isStartVisible ? 6 : 0}px`,
+                        style={{ position: 'absolute', left, top: 6, height: ROW_H - 12, width: Math.max(width, 4),
+                          background: colors.bg, zIndex: 4, cursor: 'pointer', overflow: 'hidden',
                           display: 'flex', alignItems: 'center', paddingLeft: 8,
-                          cursor: 'pointer', overflow: 'hidden',
-                          boxShadow: '0 1px 4px rgba(0,0,0,.12)',
-                          transition: 'opacity .15s',
-                          zIndex: 2
-                        }}
+                          borderRadius: `${seg.isStartClipped ? 0 : 6}px ${seg.isEndClipped ? 0 : 6}px ${seg.isEndClipped ? 0 : 6}px ${seg.isStartClipped ? 0 : 6}px`,
+                          boxShadow: '0 1px 4px rgba(0,0,0,.15)' }}
                         onMouseOver={e => e.currentTarget.style.opacity = '.85'}
                         onMouseOut={e => e.currentTarget.style.opacity = '1'}>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: colors.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {seg.firma || seg.status}
-                          {seg.elib ? ` → ${seg.elib}` : ''}
-                        </span>
-                        {seg.apt.prosop && <span style={{ marginLeft: 4, fontSize: 10, opacity: .8, color: colors.text }}>🛁</span>}
+                        {!seg.isStartClipped && width > 40 && (
+                          <span style={{ fontSize: 11, fontWeight: 600, color: colors.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', pointerEvents: 'none' }}>
+                            {seg.firma}
+                            {seg.elib ? ` → ${seg.elib.substring(5)}` : ''}
+                          </span>
+                        )}
+                        {seg.isStartClipped && width > 10 && (
+                          <span style={{ fontSize: 10, color: colors.text, opacity: .7, pointerEvents: 'none' }}>◀ {seg.firma}</span>
+                        )}
                       </div>
                     )
                   })}
+
+                  {/* Preview drag selection */}
+                  {dragRange && dragRange.aptNr === apt.nr && (
+                    <div style={{ position: 'absolute', left: dragRange.start * COL_W + 2, top: 6, height: ROW_H - 12,
+                      width: (dragRange.end - dragRange.start + 1) * COL_W - 4,
+                      background: 'rgba(26,58,107,.25)', borderRadius: 6, zIndex: 3, border: '2px dashed #1A3A6B', pointerEvents: 'none' }}>
+                      <span style={{ fontSize: 11, color: '#1A3A6B', fontWeight: 600, padding: '0 6px', whiteSpace: 'nowrap' }}>
+                        {dragRange.end - dragRange.start + 1} zile
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )
           })}
 
           {filteredApts.length === 0 && (
-            <div style={{ padding: 40, textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
+            <div style={{ padding: 48, textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
               Niciun apartament găsit.
             </div>
           )}
@@ -289,41 +348,43 @@ export default function ReservationTimeline({ apts, curatenii, onEditApt, onAddA
       </div>
 
       {/* Legenda */}
-      <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap', fontSize: 11, color: '#64748B' }}>
+      <div style={{ display: 'flex', gap: 14, marginTop: 10, flexWrap: 'wrap', fontSize: 11, color: '#64748B', alignItems: 'center' }}>
         {[
-          { color: '#1A3A6B', label: 'Ocupat' },
+          { color: '#1A3A6B', label: 'Cazare' },
+          { color: '#0F766E', label: 'Chirie' },
           { color: '#B91C1C', label: 'Eliberează' },
           { color: '#5B21B6', label: 'Special' },
           { color: '#B45309', label: 'Mentenanță' },
         ].map(l => (
-          <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <div style={{ width: 12, height: 12, borderRadius: 3, background: l.color }}></div>
+          <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ width: 14, height: 10, borderRadius: 3, background: l.color }}></div>
             {l.label}
           </div>
         ))}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#1A3A6B' }}></div>
-          Curățenie programată
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#1A3A6B' }}></div> Curățenie programată
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#1A7A4A' }}></div>
-          Curățenie finalizată
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#1A7A4A' }}></div> Finalizată
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#B91C1C' }}></div>
-          Curățenie generală
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#B91C1C' }}></div> Generală
         </div>
       </div>
 
       {/* Tooltip */}
       {tooltip && (
-        <div style={{ position: 'fixed', left: tooltip.x + 12, top: tooltip.y - 10, background: '#0F2344', color: '#fff', borderRadius: 8, padding: '8px 12px', fontSize: 12, zIndex: 1000, pointerEvents: 'none', boxShadow: '0 4px 16px rgba(0,0,0,.2)', maxWidth: 200 }}>
-          <div style={{ fontWeight: 700, marginBottom: 4 }}>AP {tooltip.apt.nr}</div>
-          <div>{tooltip.apt.firma || 'Liber'}</div>
-          {tooltip.apt.pret > 0 && <div>{tooltip.apt.pret} RON/noapte</div>}
+        <div style={{ position: 'fixed', left: tooltip.x + 14, top: tooltip.y - 10,
+          background: '#0F2344', color: '#fff', borderRadius: 8, padding: '8px 12px',
+          fontSize: 12, zIndex: 9999, pointerEvents: 'none', boxShadow: '0 4px 16px rgba(0,0,0,.2)', maxWidth: 220 }}>
+          <div style={{ fontWeight: 700, marginBottom: 3 }}>AP {tooltip.apt.nr} {tooltip.apt.tip === 'dublu' ? '(dublu)' : ''}</div>
+          <div>{tooltip.apt.firma || '—'}</div>
+          {tooltip.apt.tip_serviciu === 'chirie' && <div style={{ color: '#5DCAA5' }}>Chirie</div>}
+          {tooltip.apt.pret > 0 && <div>{tooltip.apt.pret} RON/{tooltip.apt.tip_serviciu === 'chirie' ? 'lună' : 'noapte'}</div>}
           {tooltip.apt.data_checkin && <div>Check-in: {tooltip.apt.data_checkin}</div>}
           {tooltip.apt.data_elib && <div>Elib.: {tooltip.apt.data_elib}</div>}
-          {tooltip.apt.nota && <div>Nota: {tooltip.apt.nota}</div>}
+          {tooltip.apt.nota && <div>Notă: {tooltip.apt.nota}</div>}
+          {tooltip.apt.nr_locuri && <div>{tooltip.apt.nr_locuri} locuri</div>}
         </div>
       )}
     </div>
