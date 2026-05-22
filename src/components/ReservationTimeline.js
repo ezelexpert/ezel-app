@@ -6,11 +6,11 @@ const ROW_H = 44
 const LABEL_W = 130
 
 const ST_COLORS = {
-  activ:   { bg: '#1A3A6B', text: '#fff' },
-  elib:    { bg: '#B91C1C', text: '#fff' },
-  special: { bg: '#5B21B6', text: '#fff' },
-  maint:   { bg: '#B45309', text: '#fff' },
-  chirie:  { bg: '#0F766E', text: '#fff' },
+  activ:   { bg: 'rgba(26,58,107,.45)', text: '#0F2344' },
+  elib:    { bg: 'rgba(185,28,28,.35)', text: '#7F1D1D' },
+  special: { bg: 'rgba(91,33,182,.35)', text: '#3B0764' },
+  maint:   { bg: 'rgba(180,83,9,.35)', text: '#78350F' },
+  chirie:  { bg: 'rgba(15,118,110,.35)', text: '#134E4A' },
 }
 
 function addZile(d, n) {
