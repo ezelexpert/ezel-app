@@ -633,23 +633,11 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
         {/* APARTAMENTE - Timeline view */}
         {tab === 1 && (
           <div>
+            <RezervariPage
               apts={apts}
               curatenii={curatenii}
               onEditApt={(apt) => { setEditData({ ...apt }); setModal('editApt') }}
-              onAddApt={() => { setEditData({ tip: 'simplu', status: 'liber', plata: 'OP', tip_serviciu: 'cazare' }); setModal('addApt') }}
-              onNewReservation={({ apt, data_checkin, data_elib, zile }) => {
-                setEditData({
-                  ...apt,
-                  data_checkin,
-                  data_elib,
-                  nr_nopti: zile,
-                  status: 'activ',
-                  tip_serviciu: apt.tip_serviciu || 'cazare'
-                })
-                setModal('editApt')
-              }}
             />
-            {/* Actiuni multiple - raman accesibile */}
             <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button className="btn" style={{ background:'#EBF1FB', color:'#1F3864', border:'1px solid #90B8E8' }} onClick={() => { setEditData({}); setModal('editLocuri') }}>🛏 Modifică locuri</button>
               <button className="btn btn-o" onClick={() => { setEditData({}); setModal('medit') }} disabled={selApts.size === 0}>✏️ Editează multiple</button>
