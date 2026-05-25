@@ -81,6 +81,7 @@ function gasesteFirmaSimilara(numeNou, firmeExistente, prag = 0.5) {
 // Navigare cu dropdown grupuri
 const NAV_GROUPS = [
   { key: 'acasa', label: '🏠 Acasă', single: true, tab: 11 },
+  { key: 'rezervari', label: '📆 Rezervări', single: true, tab: 13 },
   {
     key: 'operational', label: '⚙️ Operațional',
     items: [
