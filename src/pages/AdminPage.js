@@ -19,6 +19,7 @@ import PontajTab from './PontajTab'
 import { checkSiRuleazaVineri, genereazaSaptamana } from '../lib/autoScheduler'
 import DashboardTab from './DashboardTab'
 import SetariPage from './SetariPage'
+import RezervariPage from './RezervariPage'
 import { getNume } from '../lib/auth'
 
 // ── Normalizeaza data la YYYY-MM-DD ──────────────────────────
@@ -93,6 +94,7 @@ const NAV_GROUPS = [
     key: 'date', label: '💼 Date',
     items: [
       { label: '🚪 Apartamente', tab: 1 },
+      { label: '📆 Rezervări', tab: 13 },
       { label: '🏢 Firme', tab: 2 },
       { label: '📋 Istoric', tab: 3 },
     ]
@@ -786,6 +788,14 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
         {tab === 8 && <SpalatoriePage />}
         {tab === 9 && <SalariiTab />}
         {tab === 10 && <PontajTab />}
+        {tab === 13 && (
+          <RezervariPage
+            apts={apts}
+            curatenii={curatenii}
+            onEditApt={(apt) => { setEditData({...apt}); setModal('editApt') }}
+          />
+        )}
+
         {tab === 12 && (
           getNume() === 'David Salajan'
             ? <SetariPage />
