@@ -610,7 +610,8 @@ export default function SetariPage() {
                 <button onClick={() => {
                   const noi = s.locatii.filter(x=>x.id!==l.id)
                   setSetari(p=>({...p,locatii:noi}))
-                  await supabase.from('setari').upsert({id:'locatii',valoare:noi,updated_at:new Date().toISOString()})
+                  supabase.from('setari').upsert({id:'locatii',valoare:noi,updated_at:new Date().toISOString()})
+              setLocForm({nume:'',adresa:'',email:''})
                 }} style={{ padding:'5px 10px', borderRadius:8, border:'1px solid #FECACA', background:'#FEE2E2', fontSize:11, cursor:'pointer', color:'#B91C1C' }}>🗑</button>
               </div>
             </div>
