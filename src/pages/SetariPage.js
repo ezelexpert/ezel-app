@@ -640,7 +640,7 @@ export default function SetariPage() {
                   {l.adresa && <div style={{ fontSize:11, color:'#94A3B8', marginTop:2 }}>{l.adresa}</div>}
                   {l.email && <div style={{ fontSize:11, color:'#94A3B8' }}>✉️ {l.email}</div>}
                 </div>
-                <button onClick={() => {
+                <button onClick={async () => {
                   const noi = s.locatii.filter(x=>x.id!==l.id)
                   setSetari(p=>({...p,locatii:noi}))
                   await supabase.from('setari').upsert({id:'locatii',valoare:noi,updated_at:new Date().toISOString()})
@@ -653,7 +653,7 @@ export default function SetariPage() {
             <div className="fg"><label className="fl">Nume</label><input className="fi" value={locForm.nume} onChange={e=>setLocForm({...locForm,nume:e.target.value})} placeholder="ex: Piața Unirii" /></div>
             <div className="fg"><label className="fl">Adresă</label><input className="fi" value={locForm.adresa} onChange={e=>setLocForm({...locForm,adresa:e.target.value})} placeholder="ex: str. Republicii nr. 5, Oradea" /></div>
             <div className="fg"><label className="fl">Email rapoarte</label><input className="fi" value={locForm.email} onChange={e=>setLocForm({...locForm,email:e.target.value})} placeholder="ex: manager@ezel.ro" /></div>
-            <button className="btn btn-p" onClick={() => {
+            <button className="btn btn-p" onClick={async () => {
               if (!locForm.nume.trim()) return
               const noua = { id:`loc${Date.now()}`, ...locForm }
               const noi = [...s.locatii, noua]
