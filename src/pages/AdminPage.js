@@ -18,6 +18,7 @@ import ReservationTimeline from '../components/ReservationTimeline'
 import PontajTab from './PontajTab'
 import { checkSiRuleazaVineri, genereazaSaptamana } from '../lib/autoScheduler'
 import DashboardTab from './DashboardTab'
+import SetariPage from './SetariPage'
 import { getNume } from '../lib/auth'
 
 // ── Normalizeaza data la YYYY-MM-DD ──────────────────────────
@@ -104,6 +105,7 @@ const NAV_GROUPS = [
       { label: '⏱ Pontaj', tab: 10 },
     ]
   },
+  { key: 'setari', label: '⚙️ Setări', single: true, tab: 12, superAdmin: true },
 ]
 const TABS = ['📅 Calendar', '🚪 Apartamente', '🏢 Firme', '📋 Istoric', '💰 Incasari', '📊 Statistici', '🔧 Mentenanta', '📅 Amanari', '🧺 Spalatorie', '💵 Salarii', '⏱ Pontaj']
 const TAB_KEYS = ['calendar', 'apartamente', 'firme', 'istoric', 'incasari', 'statistici', 'mentenanta', 'amanari', 'spalatorie', 'salarii', 'pontaj']
@@ -784,6 +786,15 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
         {tab === 8 && <SpalatoriePage />}
         {tab === 9 && <SalariiTab />}
         {tab === 10 && <PontajTab />}
+        {tab === 12 && (
+          getNume() === 'David Salajan'
+            ? <SetariPage />
+            : <div style={{ textAlign:'center', padding:'80px 20px' }}>
+                <div style={{ fontSize:48, marginBottom:16 }}>🔒</div>
+                <div style={{ fontSize:16, fontWeight:600, color:'#0F2344' }}>Acces restricționat</div>
+                <div style={{ fontSize:13, color:'#94A3B8', marginTop:6 }}>Doar super-admin poate accesa setările.</div>
+              </div>
+        )}
       </div>
 
       {/* MODAL EDIT APT */}
