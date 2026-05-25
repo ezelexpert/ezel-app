@@ -21,6 +21,8 @@ import DashboardTab from './DashboardTab'
 import SetariPage from './SetariPage'
 import RezervariPage from './RezervariPage'
 import { getNume } from '../lib/auth'
+import { ToastProvider, useToast } from './Toast'
+import GlobalSearch from './GlobalSearch'
 
 // ── Normalizeaza data la YYYY-MM-DD ──────────────────────────
 function normalizeData(d) {
@@ -115,8 +117,9 @@ const TAB_KEYS = ['calendar', 'apartamente', 'firme', 'istoric', 'incasari', 'st
 const LUNI = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie']
 const ST_MAP = { activ: ['bb','Ocupat'], elib: ['br2','Elib.'], special: ['bp2','Special'], liber: ['bg2','Liber'], maint: ['ba','Mentenanță'] }
 
-export default function AdminPage() {
+function AdminPageInner() {
   const navigate = useNavigate()
+  const toast = useToast()
   const [tab, setTab] = useState(11)
   const [apts, setApts] = useState([])
   const [curatenii, setCuratenii] = useState([])
@@ -241,7 +244,7 @@ export default function AdminPage() {
       }
       return
     }
-        if (fields.status !== 'special' && (!fields.pret || Number(fields.pret) <= 0)) { alert('Pretul este obligatoriu!'); return }
+        if (fields.status !== 'special' && (!fields.pret || Number(fields.pret) <= 0)) { toast.error('Prețul este obligatoriu!'); return }
     if (!fields.tip_serviciu) fields.tip_serviciu = 'cazare'
     if (fields.tip_serviciu !== 'chirie') { fields.pret_utilitati = 0; fields.utilitati_tip = 'fix' }
     // Firma completata = Ocupat automat (mereu)
@@ -353,11 +356,12 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
     setModal(null)
     await updateApartament(nr, fields)
     const c = await getCuratenie(); setCuratenii(c)
+    toast.success('✓ Apartament salvat')
   }
 
   async function saveAddApt() {
-    if (!editData.nr) { alert('Numarul apartamentului este obligatoriu!'); return }
-    if (!editData.pret || Number(editData.pret) <= 0) { alert('Pretul este obligatoriu!'); return }
+    if (!editData.nr) { toast.error('Numărul apartamentului este obligatoriu!'); return }
+    if (!editData.pret || Number(editData.pret) <= 0) { toast.error('Prețul este obligatoriu!'); return }
     if (!editData.tip_serviciu) editData.tip_serviciu = 'cazare'
     let status = editData.status || 'liber'
     if (editData.firma && editData.firma.trim() && status === 'liber') status = 'activ'
@@ -391,12 +395,12 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
     if (editData.pret) fields.pret = editData.pret
     if (editData.plata) fields.plata = editData.plata
     if (editData.data_elib) fields.data_elib = editData.data_elib
-    if (!Object.keys(fields).length) { alert('Completați cel puțin un câmp!'); return }
+    if (!Object.keys(fields).length) { toast.error('Completați cel puțin un câmp!'); return }
     const list = Array.from(selApts)
     setApts(prev => prev.map(a => list.includes(a.nr) ? { ...a, ...fields } : a))
     setModal(null); clearSel()
     await updateApartamenteMultiple(list, fields)
-    alert(`Actualizate: ${list.length} apartamente`)
+    toast.success(`✓ Actualizate ${list.length} apartamente`)
   }
 
   async function saveCurUnic() {
@@ -408,11 +412,11 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
 
   async function saveCurMulti() {
     const list = editData.selApts || []
-    if (!list.length) { alert('Selectați cel puțin un apartament!'); return }
+    if (!list.length) { toast.error('Selectați cel puțin un apartament!'); return }
     await programeazaCuratenieMultipla(list, editData.data_programata, editData.tip_curatenie, editData.observatii, apts)
     setModal(null)
     const c = await getCuratenie(); setCuratenii(c)
-    alert(`${list.length} apartamente programate!`)
+    toast.success(`✓ ${list.length} apartamente programate`)
   }
 
   async function saveCurApt() {
@@ -420,12 +424,12 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
     await programeazaCuratenieMultipla(list, editData.data_programata, editData.tip_curatenie, editData.observatii||'', apts)
     setModal(null); clearSel()
     const c = await getCuratenie(); setCuratenii(c)
-    alert(`${list.length} programate!`)
+    toast.success(`✓ ${list.length} curățenii programate`)
   }
 
   async function handleCellAction(action, curatenie) {
     if (action === 'sterge') {
-      if (!window.confirm('Ștergi curățenia?')) return
+      if (!window.confirm('Ștergi curățenia?')) return  // TODO: replace with toast.confirm
       await stergeCuratenie(curatenie.id)
     } else if (action === 'add') {
       await programeazaDinCalendar(curatenie)
@@ -443,14 +447,14 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
     const s = editData.data_start, e = editData.data_end, p = Number(editData.pret_noapte)||0
     const z = s&&e ? Math.max(0, Math.round((new Date(e)-new Date(s))/86400000)) : 0
     const obj = { ...editData, nr_zile: z, total_estimat: z * p }
-    if (!obj.firma || !obj.nr_apt || !s) { alert('Completați firma, apartament și data start!'); return }
+    if (!obj.firma || !obj.nr_apt || !s) { toast.error('Completați firma, apartamentul și data start!'); return }
     setIstoric(prev => [{ ...obj, id: Date.now() }, ...prev])
     setModal(null)
     await adaugaIstoric(obj)
   }
 
   async function delIst(id) {
-    if (!window.confirm('Ștergi?')) return
+    if (!window.confirm('Ștergi înregistrarea?')) return
     setIstoric(prev => prev.filter(r => r.id !== id))
     await stergeIstoric(id)
   }
@@ -495,6 +499,16 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
         <button onClick={() => setOpenDropdown('mobile')}
           style={{ background:'rgba(255,255,255,.15)', border:'1px solid rgba(255,255,255,.2)', color:'#fff', borderRadius: 12, padding:'6px 11px', cursor:'pointer', fontSize:18, lineHeight:1 }}
           className="hamburger-btn">☰</button>
+        <GlobalSearch
+          apts={apts}
+          curatenii={curatenii}
+          onNavigate={(t) => {
+            if (t === 'curatenie') window.location.href = '/curatenie'
+            else if (t === 'addApt') { setEditData({ tip:'simplu', status:'liber', plata:'OP', tip_serviciu:'cazare' }); setModal('addApt') }
+            else setTab(t)
+          }}
+          onEditApt={(apt) => { setEditData({...apt}); setModal('editApt') }}
+        />
         <button className="btn" style={{ background: 'rgba(255,255,255,.12)', border: '1px solid rgba(255,255,255,.2)', color: '#fff', fontSize: 12 }} onClick={handleLogout}>Ieși</button>
       </div>
 
@@ -588,7 +602,9 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
             onAutoSchedule={async () => {
               if (!window.confirm('Generezi automat curățeniile pentru săptămâna viitoare?')) return
               const r = await genereazaSaptamana()
-              setSchedulerMsg(r.programate > 0 ? `✅ Programat ${r.programate} curățenii!` : '⚠️ Nimic de programat (toate sunt la zi)')
+              const msg = r.programate > 0 ? `Programat ${r.programate} curățenii!` : 'Nimic de programat — toate sunt la zi'
+              r.programate > 0 ? toast.success(msg) : toast.info(msg)
+              setSchedulerMsg(r.programate > 0 ? `✅ ${msg}` : `⚠️ ${msg}`)
               setTimeout(() => setSchedulerMsg(null), 6000)
               loadAll()
             }}
@@ -1190,5 +1206,12 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
         </Modal>
       )}
     </div>
+  )
+}
+export default function AdminPage() {
+  return (
+    <ToastProvider>
+      <AdminPageInner />
+    </ToastProvider>
   )
 }
