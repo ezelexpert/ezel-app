@@ -195,7 +195,7 @@ function AdminPageInner() {
         }
       }).catch(e => console.error('Scheduler error:', e))
     })
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadAll]) // eslint-disable-line
 
   function handleLogout() { logout(); navigate('/', { replace: true }) }
 
