@@ -14,7 +14,6 @@ import AmanariTab from './AmanariTab'
 import IncasariTab from './IncasariTab'
 import SpalatoriePage from './SpalatoriePage'
 import SalariiTab from './SalariiTab'
-import ReservationTimeline from '../components/ReservationTimeline'
 import PontajTab from './PontajTab'
 import { checkSiRuleazaVineri, genereazaSaptamana } from '../lib/autoScheduler'
 import DashboardTab from './DashboardTab'
@@ -111,9 +110,6 @@ const NAV_GROUPS = [
   },
   { key: 'setari', label: '⚙️ Setări', single: true, tab: 12, superAdmin: true },
 ]
-const TABS = ['📅 Calendar', '🚪 Apartamente', '🏢 Firme', '📋 Istoric', '💰 Incasari', '📊 Statistici', '🔧 Mentenanta', '📅 Amanari', '🧺 Spalatorie', '💵 Salarii', '⏱ Pontaj']
-const TAB_KEYS = ['calendar', 'apartamente', 'firme', 'istoric', 'incasari', 'statistici', 'mentenanta', 'amanari', 'spalatorie', 'salarii', 'pontaj']
-const LUNI = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie']
 const ST_MAP = { activ: ['bb','Ocupat'], elib: ['br2','Elib.'], special: ['bp2','Special'], liber: ['bg2','Liber'], maint: ['ba','Mentenanță'] }
 
 function AdminPageInner() {
@@ -136,6 +132,7 @@ function AdminPageInner() {
   const [editData, setEditData] = useState({})
   const [schedulerMsg, setSchedulerMsg] = useState(null)
   const [openDropdown, setOpenDropdown] = useState(null)
+  const [saving, setSaving] = useState(false)
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -186,16 +183,19 @@ function AdminPageInner() {
   }, [])
 
   useEffect(() => {
-    loadAll()
-    // Ruleaza auto-scheduler vineri
-    checkSiRuleazaVineri().then(result => {
-      if (result && result.programate > 0) {
-        setSchedulerMsg(`✅ Auto-programat ${result.programate} curățenii pentru săptămâna viitoare!`)
-        setTimeout(() => setSchedulerMsg(null), 8000)
-        loadAll() // Reincarca datele
-      }
-    }).catch(e => console.error('Scheduler error:', e))
-  }, [loadAll])
+    // Incarca datele si ruleaza scheduler dupa
+    loadAll().then(() => {
+      checkSiRuleazaVineri().then(result => {
+        if (result && result.programate > 0) {
+          toast.success(`Auto-programat ${result.programate} curățenii pentru săptămâna viitoare!`)
+          setSchedulerMsg(`✅ Auto-programat ${result.programate} curățenii!`)
+          setTimeout(() => setSchedulerMsg(null), 8000)
+          // Reincarca curatenii (nu tot) - fara race condition
+          getCuratenie().then(c => setCuratenii(c))
+        }
+      }).catch(e => console.error('Scheduler error:', e))
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleLogout() { logout(); navigate('/', { replace: true }) }
 
@@ -203,8 +203,6 @@ function AdminPageInner() {
   const total = apts.filter(a => a.status !== 'maint').length
   const libre = apts.filter(a => a.status === 'liber').length
   const elib = apts.filter(a => a.status === 'elib').length
-  const rev = apts.filter(a => a.status === 'activ' && a.pret > 0).reduce((s,a) => s + Number(a.pret) * 30, 0)
-
   const filteredApts = apts.filter(a =>
     (!srchApt || (a.nr + (a.firma||'') + (a.nota||'')).toLowerCase().includes(srchApt.toLowerCase())) &&
     (!fltStatus || a.status === fltStatus)
@@ -216,6 +214,8 @@ function AdminPageInner() {
   function clearSel() { setSelApts(new Set()) }
 
     async function saveEditApt() {
+    if (saving) return
+    setSaving(true)
     const { nr, ...fields } = editData
     const aptCurent = apts.find(a => a.nr === nr)
     const aziNow = new Date().toISOString().split('T')[0]
@@ -241,14 +241,16 @@ function AdminPageInner() {
         for (const c of curViit) await stergeCuratenie(c.id)
         setCuratenii(prev => prev.filter(c => !(c.nr_apt === nr && c.data_programata >= aziNow && c.status_curatenie !== 'finalizata')))
       }
+      setSaving(false)
       return
     }
         if (fields.status !== 'special' && (!fields.pret || Number(fields.pret) <= 0)) { toast.error('Prețul este obligatoriu!'); return }
     if (!fields.tip_serviciu) fields.tip_serviciu = 'cazare'
     if (fields.tip_serviciu !== 'chirie') { fields.pret_utilitati = 0; fields.utilitati_tip = 'fix' }
-    // Firma completata = Ocupat automat (mereu)
+    // Logica status (ordinea conteaza):
+    // 1. Firma = Ocupat
     if (fields.firma && fields.firma.trim()) { fields.status = 'activ' }
-    // Normalizeaza data_elib la YYYY-MM-DD - suprascrie statusul daca e data elib
+    // 2. Data elib = Elibereaza (suprascrie Ocupat - clientul sta dar are data plecare)
     if (fields.data_elib && fields.data_elib.trim()) {
       fields.data_elib = normalizeData(fields.data_elib)
       fields.status = 'elib'
@@ -356,6 +358,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
     await updateApartament(nr, fields)
     const c = await getCuratenie(); setCuratenii(c)
     toast.success('✓ Apartament salvat')
+    setSaving(false)
   }
 
   async function saveAddApt() {
@@ -428,7 +431,11 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
 
   async function handleCellAction(action, curatenie) {
     if (action === 'sterge') {
-      if (!window.confirm('Ștergi curățenia?')) return  // TODO: replace with toast.confirm
+      const ok = await new Promise(res => {
+        toast.confirm('Ștergi curățenia programată?', () => res(true))
+        setTimeout(() => res(false), 10000)
+      })
+      if (!ok) return
       await stergeCuratenie(curatenie.id)
     } else if (action === 'add') {
       await programeazaDinCalendar(curatenie)
@@ -453,7 +460,11 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
   }
 
   async function delIst(id) {
-    if (!window.confirm('Ștergi înregistrarea?')) return
+    const ok = await new Promise(res => {
+      toast.confirm('Ștergi înregistrarea din istoric?', () => res(true))
+      setTimeout(() => res(false), 10000)
+    })
+    if (!ok) return
     setIstoric(prev => prev.filter(r => r.id !== id))
     await stergeIstoric(id)
   }
@@ -622,7 +633,6 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
         {/* APARTAMENTE - Timeline view */}
         {tab === 1 && (
           <div>
-            <ReservationTimeline
               apts={apts}
               curatenii={curatenii}
               onEditApt={(apt) => { setEditData({ ...apt }); setModal('editApt') }}
@@ -924,7 +934,9 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
             </div>
           )}
           <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-            <button className="btn btn-p" style={{ flex: 1 }} onClick={saveEditApt}>Salvează</button>
+            <button className="btn btn-p" style={{ flex: 1 }} onClick={saveEditApt} disabled={saving}>
+              {saving ? '⏳ Se salvează...' : 'Salvează'}
+            </button>
             <button className="btn" onClick={() => setModal(null)}>Anulează</button>
           </div>
         </Modal>
