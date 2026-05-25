@@ -97,7 +97,6 @@ const NAV_GROUPS = [
     key: 'date', label: '💼 Date',
     items: [
       { label: '🚪 Apartamente', tab: 1 },
-      { label: '📆 Rezervări', tab: 13 },
       { label: '🏢 Firme', tab: 2 },
       { label: '📋 Istoric', tab: 3 },
     ]
