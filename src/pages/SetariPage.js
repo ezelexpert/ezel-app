@@ -171,7 +171,15 @@ export default function SetariPage() {
     const { data } = await supabase.from('setari').select('*')
     if (!data) return
     const merged = { ...DEFAULT_SETARI }
-    data.forEach(r => { if (merged[r.id] !== undefined) merged[r.id] = { ...merged[r.id], ...r.valoare } })
+    data.forEach(r => {
+      if (r.id === 'locatii') {
+        merged.locatii = Array.isArray(r.valoare) ? r.valoare : merged.locatii
+      } else if (merged[r.id] !== undefined) {
+        merged[r.id] = typeof r.valoare === 'object' && !Array.isArray(r.valoare)
+          ? { ...merged[r.id], ...r.valoare }
+          : r.valoare
+      }
+    })
     setSetari(merged)
   }
 
@@ -601,9 +609,8 @@ export default function SetariPage() {
                 </div>
                 <button onClick={() => {
                   const noi = s.locatii.filter(x=>x.id!==l.id)
-                  updateSetari('locatii','',noi)
                   setSetari(p=>({...p,locatii:noi}))
-                  supabase.from('setari').upsert({id:'locatii',valoare:noi,updated_at:new Date().toISOString()})
+                  await supabase.from('setari').upsert({id:'locatii',valoare:noi,updated_at:new Date().toISOString()})
                 }} style={{ padding:'5px 10px', borderRadius:8, border:'1px solid #FECACA', background:'#FEE2E2', fontSize:11, cursor:'pointer', color:'#B91C1C' }}>🗑</button>
               </div>
             </div>
@@ -618,7 +625,7 @@ export default function SetariPage() {
               const noua = { id:`loc${Date.now()}`, ...locForm }
               const noi = [...s.locatii, noua]
               setSetari(p=>({...p,locatii:noi}))
-              supabase.from('setari').upsert({id:'locatii',valoare:noi,updated_at:new Date().toISOString()})
+              await supabase.from('setari').upsert({id:'locatii',valoare:noi,updated_at:new Date().toISOString()})
               setLocForm({nume:'',adresa:'',email:''})
             }}>+ Adaugă</button>
           </div>
