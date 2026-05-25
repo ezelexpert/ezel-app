@@ -157,6 +157,8 @@ export default function SetariPage() {
   const [locForm, setLocForm] = useState({ nume:'', adresa:'', email:'' })
   const [firmaSpecialaForm, setFirmaSpecialaForm] = useState({ firma:'', zile:[] })
   const [angajatForm, setAngajatForm] = useState(null)
+  const [userError, setUserError] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(null)
 
   useEffect(() => { loadUtilizatori(); loadSetariDB() }, [])
 
@@ -188,13 +190,30 @@ export default function SetariPage() {
   }
 
   async function saveSection(section) {
-    await supabase.from('setari').upsert({
+    const { error } = await supabase.from('setari').upsert({
       id: section, valoare: setari[section], updated_at: new Date().toISOString()
     })
+    if (error) {
+      alert('Eroare la salvare: ' + error.message)
+      return
+    }
     if (section === 'culori') {
       document.documentElement.style.setProperty('--navy', setari.culori.primary)
       document.documentElement.style.setProperty('--green', setari.culori.accent)
       document.documentElement.style.setProperty('--bg', setari.culori.bg)
+    }
+    // Sincronizeaza angajatii cu tabelul utilizatori
+    if (section === 'angajati') {
+      for (const a of setari.angajati.lista || []) {
+        const { data: existing } = await supabase.from('utilizatori')
+          .select('id, parola').eq('nume', a.nume).single()
+        if (existing) {
+          // Actualizeaza parola daca s-a schimbat
+          if (existing.parola !== a.parola) {
+            await supabase.from('utilizatori').update({ parola: a.parola, activ: a.activ }).eq('id', existing.id)
+          }
+        }
+      }
     }
     setSaved(p => ({ ...p, [section]: true }))
     setTimeout(() => setSaved(p => ({ ...p, [section]: false })), 2500)
@@ -202,7 +221,11 @@ export default function SetariPage() {
 
   // ── Utilizatori ──────────────────────────────────────────
   async function saveUser() {
-    if (!userForm.nume.trim() || !userForm.parola.trim()) { alert('Completează numele și parola!'); return }
+    if (!userForm.nume.trim() || !userForm.parola.trim()) {
+      setUserError('Completează numele și parola!')
+      return
+    }
+    setUserError('')
     if (userModal === 'add') {
       await supabase.from('utilizatori').insert({ nume:userForm.nume.trim(), parola:userForm.parola.trim(), rol:userForm.rol, activ:userForm.activ })
     } else {
@@ -219,9 +242,14 @@ export default function SetariPage() {
   }
 
   async function deleteUser(u) {
-    if (!window.confirm(`Ștergi "${u.nume}"?`)) return
-    await supabase.from('utilizatori').delete().eq('id', u.id)
-    setUtilizatori(prev => prev.filter(x => x.id !== u.id))
+    setConfirmDelete(u)
+  }
+
+  async function confirmDeleteUser() {
+    if (!confirmDelete) return
+    await supabase.from('utilizatori').delete().eq('id', confirmDelete.id)
+    setUtilizatori(prev => prev.filter(x => x.id !== confirmDelete.id))
+    setConfirmDelete(null)
   }
 
   async function loadLogLogin() {
@@ -330,9 +358,14 @@ export default function SetariPage() {
                   </div>
                   <span style={{ fontSize:13, color:'#0F2344', fontWeight:500 }}>Cont activ</span>
                 </div>
+                {userError && (
+                  <div style={{ padding:'8px 12px', background:'#FEE2E2', borderRadius:10, fontSize:12, color:'#B91C1C', marginBottom:8 }}>
+                    ⚠️ {userError}
+                  </div>
+                )}
                 <div style={{ display:'flex', gap:8 }}>
                   <button className="btn btn-p" style={{ flex:1 }} onClick={saveUser}>Salvează</button>
-                  <button className="btn" onClick={() => setUserModal(null)}>Anulează</button>
+                  <button className="btn" onClick={() => { setUserModal(null); setUserError('') }}>Anulează</button>
                 </div>
               </div>
             </div>
@@ -610,8 +643,7 @@ export default function SetariPage() {
                 <button onClick={() => {
                   const noi = s.locatii.filter(x=>x.id!==l.id)
                   setSetari(p=>({...p,locatii:noi}))
-                  supabase.from('setari').upsert({id:'locatii',valoare:noi,updated_at:new Date().toISOString()})
-              setLocForm({nume:'',adresa:'',email:''})
+                  await supabase.from('setari').upsert({id:'locatii',valoare:noi,updated_at:new Date().toISOString()})
                 }} style={{ padding:'5px 10px', borderRadius:8, border:'1px solid #FECACA', background:'#FEE2E2', fontSize:11, cursor:'pointer', color:'#B91C1C' }}>🗑</button>
               </div>
             </div>
@@ -875,6 +907,27 @@ export default function SetariPage() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal confirmare stergere user */}
+      {confirmDelete && (
+        <div className="overlay" onClick={() => setConfirmDelete(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth:380 }}>
+            <div style={{ textAlign:'center', padding:'8px 0 16px' }}>
+              <div style={{ fontSize:40, marginBottom:12 }}>🗑</div>
+              <div style={{ fontSize:15, fontWeight:600, color:'#0F2344', marginBottom:8 }}>
+                Ștergi utilizatorul?
+              </div>
+              <div style={{ fontSize:13, color:'#94A3B8', marginBottom:20 }}>
+                <strong>{confirmDelete.nume}</strong> ({ROL_LABELS[confirmDelete.rol]}) va fi șters permanent.
+              </div>
+              <div style={{ display:'flex', gap:8 }}>
+                <button className="btn" style={{ flex:1 }} onClick={() => setConfirmDelete(null)}>Anulează</button>
+                <button className="btn btn-r" style={{ flex:1 }} onClick={confirmDeleteUser}>Șterge definitiv</button>
+              </div>
+            </div>
           </div>
         </div>
       )}
