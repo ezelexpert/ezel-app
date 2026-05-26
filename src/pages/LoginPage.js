@@ -1,50 +1,82 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getSession, saveUser } from '../lib/auth'
-import { supabase } from '../lib/supabase'
+import { getSession, loginCuNumeSiParola, getUtilizatori } from '../lib/auth'
+
+// ════════════════════════════════════════════════════════════════════
+// LoginPage v2 — login sigur cu nume + parolă
+//
+// Schimbări:
+// 1. Cere nume + parolă (nu doar parolă)
+// 2. Dropdown cu utilizatori activi în loc de input
+// 3. Folosește RPC login_user (parolă hash bcrypt, rate limiting)
+// 4. Păstrează același design vizual
+// ════════════════════════════════════════════════════════════════════
 
 export default function LoginPage() {
   const navigate = useNavigate()
   const [tip, setTip] = useState(null)
+  const [utilizatori, setUtilizatori] = useState([])
+  const [selectedUser, setSelectedUser] = useState('')
   const [parola, setParola] = useState('')
   const [eroare, setEroare] = useState('')
   const [loading, setLoading] = useState(false)
+  const [loadingUseri, setLoadingUseri] = useState(false)
 
   useEffect(() => {
     const s = getSession()
     if (s) {
-      navigate(s.role === 'admin' ? '/admin' : s.role === 'lenjerii' ? '/lenjerii' : '/curatenie', { replace: true })
+      navigate(
+        s.role === 'admin' ? '/admin'
+        : s.role === 'lenjerii' ? '/lenjerii'
+        : '/curatenie',
+        { replace: true }
+      )
     }
   }, [navigate])
 
+  // Încarcă lista de utilizatori când se alege rolul
+  useEffect(() => {
+    if (!tip) {
+      setUtilizatori([])
+      return
+    }
+    setLoadingUseri(true)
+    getUtilizatori().then(useri => {
+      const roluri = tip === 'admin' ? ['admin'] : ['curatenie', 'lenjerii']
+      const filtrati = useri.filter(u => roluri.includes(u.rol))
+      setUtilizatori(filtrati)
+      if (filtrati.length === 1) setSelectedUser(filtrati[0].id)
+      setLoadingUseri(false)
+    })
+  }, [tip])
+
   async function handleLogin(e) {
     e.preventDefault()
-    if (!parola.trim()) return
+    if (!selectedUser || !parola.trim()) return
     setLoading(true)
     setEroare('')
 
-    try {
-      const roluri = tip === 'admin' ? ['admin'] : ['curatenie', 'lenjerii']
-      const { data, error } = await supabase
-        .from('utilizatori')
-        .select('*')
-        .eq('parola', parola.trim())
-        .eq('activ', true)
-        .in('rol', roluri)
-
-      if (error || !data || data.length === 0) {
-        setEroare('Parolă incorectă.')
-        setLoading(false)
-        return
-      }
-
-      const user = data[0]
-      saveUser(user)
-      navigate(user.rol === 'admin' ? '/admin' : user.rol === 'lenjerii' ? '/lenjerii' : '/curatenie', { replace: true })
-    } catch(e) {
-      setEroare('Eroare de conexiune. Încearcă din nou.')
+    const utilizator = utilizatori.find(u => u.id === selectedUser)
+    if (!utilizator) {
+      setEroare('Selectează un utilizator.')
+      setLoading(false)
+      return
     }
-    setLoading(false)
+
+    const result = await loginCuNumeSiParola(utilizator.nume, parola.trim())
+
+    if (result.error) {
+      setEroare(result.error)
+      setLoading(false)
+      return
+    }
+
+    navigate(
+      result.user.rol === 'admin' ? '/admin'
+      : result.user.rol === 'lenjerii' ? '/lenjerii'
+      : '/curatenie',
+      { replace: true }
+    )
   }
 
   return (
@@ -88,7 +120,9 @@ export default function LoginPage() {
           </div>
         ) : (
           <form onSubmit={handleLogin}>
-            <button type="button" onClick={() => { setTip(null); setParola(''); setEroare('') }}
+            <button type="button" onClick={() => {
+              setTip(null); setParola(''); setEroare(''); setSelectedUser('')
+            }}
               style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#888', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 4 }}>
               ← Înapoi
             </button>
@@ -98,25 +132,65 @@ export default function LoginPage() {
                 {tip === 'admin' ? 'Manager' : 'Curățenie & Lenjerii'}
               </div>
             </div>
+
+            {/* Dropdown utilizator */}
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 6 }}>
+                Utilizator
+              </label>
+              {loadingUseri ? (
+                <div style={{ padding: '12px 14px', fontSize: 14, color: '#888' }}>Se încarcă...</div>
+              ) : utilizatori.length === 0 ? (
+                <div style={{ padding: '12px 14px', fontSize: 13, color: '#c0392b', background: '#FDECEA', borderRadius: 10 }}>
+                  Niciun utilizator activ pentru acest rol.
+                </div>
+              ) : (
+                <select
+                  value={selectedUser}
+                  onChange={e => { setSelectedUser(e.target.value); setEroare('') }}
+                  style={{
+                    width: '100%', padding: '12px 14px', fontSize: 15,
+                    border: '1.5px solid #e0e0e0', borderRadius: 10,
+                    outline: 'none', boxSizing: 'border-box',
+                    background: '#fff', appearance: 'none',
+                    backgroundImage: 'url("data:image/svg+xml;charset=US-ASCII,%3Csvg width=\'10\' height=\'6\' viewBox=\'0 0 10 6\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cpath d=\'M1 1l4 4 4-4\' stroke=\'%23888\' fill=\'none\' stroke-width=\'1.5\'/%3E%3C/svg%3E")',
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 14px center',
+                    paddingRight: 40
+                  }}>
+                  <option value="">— Selectează —</option>
+                  {utilizatori.map(u => (
+                    <option key={u.id} value={u.id}>{u.nume}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
             <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 6 }}>Parola ta</label>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 6 }}>
+                Parolă
+              </label>
               <input type="password" value={parola}
                 onChange={e => { setParola(e.target.value); setEroare('') }}
                 placeholder="Introdu parola" autoFocus
+                disabled={!selectedUser}
                 style={{
                   width: '100%', padding: '12px 14px', fontSize: 16,
                   border: `1.5px solid ${eroare ? '#F5A0A0' : '#e0e0e0'}`,
                   borderRadius: 10, outline: 'none', boxSizing: 'border-box',
-                  background: eroare ? '#FDECEA' : '#fff'
+                  background: eroare ? '#FDECEA' : (selectedUser ? '#fff' : '#f5f5f5'),
+                  opacity: selectedUser ? 1 : 0.6
                 }} />
               {eroare && <div style={{ fontSize: 12, color: '#c0392b', marginTop: 6 }}>⚠️ {eroare}</div>}
             </div>
-            <button type="submit" disabled={loading || !parola.trim()}
+
+            <button type="submit" disabled={loading || !parola.trim() || !selectedUser}
               style={{
                 width: '100%', padding: '13px',
-                background: !parola.trim() ? '#ccc' : tip === 'curatenie' ? '#375623' : '#1F3864',
+                background: (!parola.trim() || !selectedUser) ? '#ccc'
+                  : tip === 'curatenie' ? '#375623' : '#1F3864',
                 color: '#fff', border: 'none', borderRadius: 10, fontSize: 15,
-                fontWeight: 600, cursor: !parola.trim() ? 'not-allowed' : 'pointer'
+                fontWeight: 600, cursor: (!parola.trim() || !selectedUser) ? 'not-allowed' : 'pointer'
               }}>
               {loading ? 'Se verifică...' : 'Intră în aplicație'}
             </button>
