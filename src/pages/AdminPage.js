@@ -230,6 +230,24 @@ function AdminPageInner() {
       fields.utilitati_tip = 'fix'
       fields.nr_nopti = null
       fields.data_checkin = ''
+      // Salveaza in rezervari inainte de reset
+      if (aptCurent?.firma && aptCurent?.data_checkin) {
+        const nrNoptiIst = aptCurent.data_elib
+          ? Math.max(0, Math.round((new Date(aptCurent.data_elib) - new Date(aptCurent.data_checkin)) / 86400000))
+          : Math.max(0, Math.round((new Date(aziNow) - new Date(aptCurent.data_checkin)) / 86400000))
+        await supabase.from('rezervari').insert({
+          nr_apt: nr,
+          firma: aptCurent.firma,
+          tip_serviciu: aptCurent.tip_serviciu || 'cazare',
+          data_checkin: aptCurent.data_checkin,
+          data_checkout: aptCurent.data_elib || aziNow,
+          pret_noapte: Number(aptCurent.pret) || 0,
+          nr_nopti: nrNoptiIst,
+          total: nrNoptiIst * (Number(aptCurent.pret) || 0),
+          status_plata: 'neplatit',
+          observatii: 'Auto-salvat la eliberare'
+        })
+      }
       setApts(prev => prev.map(a => a.nr === nr ? { ...a, ...fields } : a))
       setModal(null)
       await updateApartament(nr, fields)
@@ -240,11 +258,16 @@ function AdminPageInner() {
         for (const c of curViit) await stergeCuratenie(c.id)
         setCuratenii(prev => prev.filter(c => !(c.nr_apt === nr && c.data_programata >= aziNow && c.status_curatenie !== 'finalizata')))
       }
+      toast.success(`✓ AP ${nr} eliberat — rezervare salvată în istoric`)
       setSaving(false)
       return
     }
         if (fields.status !== 'special' && (!fields.pret || Number(fields.pret) <= 0)) { toast.error('Prețul este obligatoriu!'); return }
     if (!fields.tip_serviciu) fields.tip_serviciu = 'cazare'
+    // Pastreaza campurile de contact
+    if (editData.contact_nume !== undefined) fields.contact_nume = editData.contact_nume || ''
+    if (editData.contact_telefon !== undefined) fields.contact_telefon = editData.contact_telefon || ''
+    if (editData.contact_email !== undefined) fields.contact_email = editData.contact_email || ''
     if (fields.tip_serviciu !== 'chirie') { fields.pret_utilitati = 0; fields.utilitati_tip = 'fix' }
     // Logica status (ordinea conteaza):
     // 1. Firma = Ocupat
@@ -284,11 +307,13 @@ function AdminPageInner() {
       const firmeExistente = [...new Set(apts.filter(a => a.firma && a.nr !== nr).map(a => a.firma))]
       const similar = gasesteFirmaSimilara(fields.firma.trim(), firmeExistente)
       if (similar) {
-        const confirmat = window.confirm(
-          `Am găsit firma similară "${similar.firma}" (${Math.round(similar.score*100)}% potrivire).
-
-Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fields.firma.trim()}"?`
-        )
+        const confirmat = await new Promise(res => {
+          toast.confirm(
+            `Firmă similară găsită: "${similar.firma}" (${Math.round(similar.score*100)}%). Actualizez toate apartamentele?`,
+            () => res(true)
+          )
+          setTimeout(() => res(false), 12000)
+        })
         if (confirmat) {
           // Foloseste numele vechi (cel deja existent in sistem)
           fields.firma = similar.firma
@@ -517,7 +542,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
           apts={apts}
           curatenii={curatenii}
           onNavigate={(t) => {
-            if (t === 'curatenie') window.location.href = '/curatenie'
+            if (t === 'curatenie') navigate('/curatenie')
             else if (t === 'addApt') { setEditData({ tip:'simplu', status:'liber', plata:'OP', tip_serviciu:'cazare' }); setModal('addApt') }
             else setTab(t)
           }}
@@ -598,7 +623,7 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
             apts={apts}
             curatenii={curatenii}
             onNavigate={(t) => {
-              if (t === 'curatenie') window.location.href = '/curatenie'
+              if (t === 'curatenie') navigate('/curatenie')
               else setTab(t)
             }}
           />
@@ -614,13 +639,17 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
             }}
             onAddMulti={() => { setEditData({ selApts: [], data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('curMulti') }}
             onAutoSchedule={async () => {
-              if (!window.confirm('Generezi automat curățeniile pentru săptămâna viitoare?')) return
+              const ok = await new Promise(res => {
+                toast.confirm('Generezi automat curățeniile pentru săptămâna viitoare?', () => res(true))
+                setTimeout(() => res(false), 10000)
+              })
+              if (!ok) return
               const r = await genereazaSaptamana()
               const msg = r.programate > 0 ? `Programat ${r.programate} curățenii!` : 'Nimic de programat — toate sunt la zi'
               r.programate > 0 ? toast.success(msg) : toast.info(msg)
               setSchedulerMsg(r.programate > 0 ? `✅ ${msg}` : `⚠️ ${msg}`)
               setTimeout(() => setSchedulerMsg(null), 6000)
-              loadAll()
+              getCuratenie().then(c => setCuratenii(c))
             }}
             onStergeCuratenii={async (ids) => {
               for (const id of ids) await stergeCuratenie(id)
@@ -661,7 +690,8 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
               </button>
               <button className="btn"
                 onClick={async () => {
-                  if (!window.confirm('Generezi automat curățeniile pentru săptămâna viitoare?')) return
+                  const ok = await new Promise(res => { toast.confirm('Generezi automat curățeniile pentru săptămâna viitoare?', () => res(true)); setTimeout(() => res(false), 10000) })
+                  if (!ok) return
                   const r = await genereazaSaptamana()
                   r.programate > 0 ? toast.success(`✓ Programat ${r.programate} curățenii!`) : toast.info('Nimic de programat — toate sunt la zi')
                   getCuratenie().then(c => setCuratenii(c))
@@ -672,7 +702,8 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
                 <button className="btn" style={{ background:'#FEE2E2', color:'#B91C1C', border:'1px solid #FECACA' }}
                   onClick={async () => {
                     const list = Array.from(selApts)
-                    if (!window.confirm(`Ștergi curățeniile active pentru ${list.length} apartamente?`)) return
+                    const okDel = await new Promise(res => { toast.confirm(`Ștergi curățeniile pentru ${list.length} apartamente?`, () => res(true)); setTimeout(() => res(false), 10000) })
+                    if (!okDel) return
                     for (const nr of list) {
                       const { data: cur } = await supabase.from('curatenie').select('id').eq('nr_apt', nr).neq('status_curatenie','finalizata')
                       if (cur) for (const c of cur) await stergeCuratenie(c.id)
@@ -742,13 +773,18 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
 
                 return (
                   <div key={name} className="card">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
                       <div className="firma-av">{name.substring(0,2).toUpperCase()}</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700 }}>{name}</div>
-                        <div style={{ fontSize: 11, color: '#888' }}>{v.plata} · {v.pret} RON/apt/noapte</div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontWeight:700, fontSize:14 }}>{name}</div>
+                        <div style={{ fontSize:11, color:'#94A3B8', display:'flex', gap:8, flexWrap:'wrap', marginTop:2 }}>
+                          <span>{v.plata}</span>
+                          {v.apts[0]?.contact_telefon && <a href={`tel:${v.apts[0].contact_telefon}`} style={{ color:'#1A3A6B', textDecoration:'none' }}>📞 {v.apts[0].contact_telefon}</a>}
+                          {v.apts[0]?.contact_email && <a href={`mailto:${v.apts[0].contact_email}`} style={{ color:'#1A3A6B', textDecoration:'none' }}>✉️ {v.apts[0].contact_email}</a>}
+                          {v.apts[0]?.contact_nume && <span>👤 {v.apts[0].contact_nume}</span>}
+                        </div>
                       </div>
-                      <span className="badge bp2">{rev.toLocaleString()} RON/lună</span>
+                      <span className="badge bp2">{rev.toLocaleString()} RON</span>
                     </div>
                     {/* Statistici firma */}
                     <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6, marginBottom:8 }}>
@@ -919,6 +955,20 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
         <Modal title={`Editează AP ${editData.nr}`} onClose={() => setModal(null)}>
           <div className="fg"><label className="fl">Firmă</label>
             <input className="fi" value={editData.firma||''} onChange={e => setEditData({...editData, firma: e.target.value})} />
+          </div>
+          <div className="r2">
+            <div className="fg"><label className="fl">Persoană contact</label>
+              <input className="fi" value={editData.contact_nume||''} placeholder="ex: Ion Popescu"
+                onChange={e => setEditData({...editData, contact_nume: e.target.value})} />
+            </div>
+            <div className="fg"><label className="fl">Telefon</label>
+              <input className="fi" value={editData.contact_telefon||''} placeholder="07xx xxx xxx"
+                onChange={e => setEditData({...editData, contact_telefon: e.target.value})} />
+            </div>
+          </div>
+          <div className="fg"><label className="fl">Email</label>
+            <input className="fi" value={editData.contact_email||''} placeholder="ex: contact@firma.ro"
+              onChange={e => setEditData({...editData, contact_email: e.target.value})} />
           </div>
           <div className="fg"><label className="fl">Notă (ex: 2c/l = 2 curățenii/lună)</label>
             <input className="fi" value={editData.nota||''} onChange={e => setEditData({...editData, nota: e.target.value})}
