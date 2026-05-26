@@ -116,10 +116,11 @@ const DEFAULT_SETARI = {
     limba_implicita: 'bilingual', perioada_min: 1, perioada_max: 12,
     email_template: 'Vă transmitem atașat contractul de închiriere nr. {nr_contract}.',
   },
-angajati: {
-     lista: [
-     { id:'sv', nume:'Olar Svitlana', program_start:'07:30', program_end:'16:00', tarif:10, activ:true },
-      { id:'fa', nume:'Farcas Adela Georgiana', program_start:'07:30', program_end:'16:00', tarif:10, activ:true },     ],
+  angajati: {
+    lista: [
+      { id:'sv', nume:'Olar Svitlana', program_start:'07:30', program_end:'16:00', tarif:10, activ:true },
+      { id:'fa', nume:'Farcas Adela Georgiana', program_start:'07:30', program_end:'16:00', tarif:10, activ:true },
+    ],
     supervisor: 'Dani Milas',
   },
   locatii: [{ id:'loc1', nume:'Ovidiu Densușianu', adresa:'str. Ovidiu Densușianu nr. 1A, Oradea', email:'' }],
@@ -150,6 +151,7 @@ export default function SetariPage() {
   const [loadingUsers, setLoadingUsers] = useState(true)
   const [userModal, setUserModal] = useState(null)
   const [userForm, setUserForm] = useState({ nume:'', parola:'', rol:'curatenie', activ:true })
+  const [showParola, setShowParola] = useState({})
   const [saved, setSaved] = useState({})
   const [log, setLog] = useState([])
   const [logLogin, setLogLogin] = useState([])
@@ -162,15 +164,11 @@ export default function SetariPage() {
   useEffect(() => { loadUtilizatori(); loadSetariDB() }, [])
 
   async function loadUtilizatori() {
-setLoadingUsers(true)
-const { data } = await supabase
-.from('utilizatori_public')  // VIEW fără parola_hash
-.select('*')
-.order('rol')
-.order('nume')
-setUtilizatori(data || [])
-setLoadingUsers(false)
-}
+    setLoadingUsers(true)
+    const { data } = await supabase.from('utilizatori_public').select('*').order('rol').order('nume')
+    setUtilizatori(data || [])
+    setLoadingUsers(false)
+  }
 
   async function loadSetariDB() {
     const { data } = await supabase.from('setari').select('*')
@@ -205,60 +203,59 @@ setLoadingUsers(false)
       document.documentElement.style.setProperty('--green', setari.culori.accent)
       document.documentElement.style.setProperty('--bg', setari.culori.bg)
     }
-    // Sincronizeaza angajatii cu tabelul utilizatori
-  
+    // Sincronizeaza angajatii cu tabelul utilizatori (doar status activ, fără parolă)
+    if (section === 'angajati') {
+      for (const a of setari.angajati.lista || []) {
+        const { data: existing } = await supabase.from('utilizatori_public')
+          .select('id, activ').eq('nume', a.nume).maybeSingle()
+        if (existing && existing.activ !== a.activ) {
+          await supabase.from('utilizatori').update({ activ: a.activ }).eq('id', existing.id)
+        }
+      }
+    }
     setSaved(p => ({ ...p, [section]: true }))
     setTimeout(() => setSaved(p => ({ ...p, [section]: false })), 2500)
   }
 
   // ── Utilizatori ──────────────────────────────────────────
-async function saveUser() {
-if (!userForm.nume.trim()) {
-setUserError('Completează numele!')
-return
-}
-setUserError('')
-if (userModal === 'add') {
-if (!userForm.parola.trim() || userForm.parola.length < 8) {
-setUserError('Parola trebuie să aibă minim 8 caractere!')
-return
-}
-const result = await adaugaUtilizator(
-  userForm.nume.trim(),
-  userForm.parola.trim(),
-  userForm.rol
-)
+  async function saveUser() {
+    if (!userForm.nume.trim()) {
+      setUserError('Completează numele!')
+      return
+    }
+    setUserError('')
 
-if (result.error) {
-  setUserError(result.error)
-  return
-}
-} else {
-// Update existing user
-const updates = {
-nume: userForm.nume.trim(),
-rol: userForm.rol,
-activ: userForm.activ
-}
-// Update nume/rol/activ direct (parola_hash nu se modifică)
-await supabase.from('utilizatori').update(updates).eq('id', userModal)
+    if (userModal === 'add') {
+      if (!userForm.parola.trim() || userForm.parola.length < 8) {
+        setUserError('Parola trebuie să aibă minim 8 caractere!')
+        return
+      }
+      const result = await adaugaUtilizator(userForm.nume.trim(), userForm.parola.trim(), userForm.rol)
+      if (result.error) {
+        setUserError(result.error)
+        return
+      }
+    } else {
+      // Update nume / rol / activ (fără parolă)
+      await supabase.from('utilizatori')
+        .update({ nume: userForm.nume.trim(), rol: userForm.rol, activ: userForm.activ })
+        .eq('id', userModal)
 
-// Dacă s-a schimbat parola, folosește RPC
-if (userForm.parola && userForm.parola !== '••••••') {
-  if (userForm.parola.length < 8) {
-    setUserError('Parola trebuie să aibă minim 8 caractere!')
-    return
+      // Dacă s-a schimbat parola, folosește RPC
+      if (userForm.parola && userForm.parola !== '••••••') {
+        if (userForm.parola.length < 8) {
+          setUserError('Parola trebuie să aibă minim 8 caractere!')
+          return
+        }
+        const result = await reseteazaParola(userModal, userForm.parola.trim())
+        if (result.error) {
+          setUserError(result.error)
+          return
+        }
+      }
+    }
+    await loadUtilizatori(); setUserModal(null)
   }
-  const result = await reseteazaParola(userModal, userForm.parola.trim())
-  if (result.error) {
-    setUserError(result.error)
-    return
-  }
-}
-}
-await loadUtilizatori()
-setUserModal(null)
-}
 
   async function toggleActiv(u) {
     await supabase.from('utilizatori').update({ activ: !u.activ }).eq('id', u.id)
@@ -345,23 +342,18 @@ setUserModal(null)
                   </div>
                   <div style={{ fontSize:11, color:'#94A3B8', marginTop:2, display:'flex', gap:6, alignItems:'center' }}>
                     <span>Parolă:</span>
-                     <span style={{ fontFamily:'monospace', letterSpacing:2, color:'#94A3B8' }}>
-     ••••••••
-   </span>
-   <button
-    onClick={() => {
-       const noua = window.prompt('Parolă nouă (min 8 caractere):')
-      if (noua && noua.length >= 8) {
-        reseteazaParola(u.id, noua).then(r => {
-           if (r.ok) alert('Parolă schimbată!')
-          else alert(r.error)
-         })
-    } else if (noua) {
-       alert('Parola trebuie să aibă minim 8 caractere!')
-     }
-   }}
-   style={{ padding:'5px 10px', borderRadius:8, border:'1px solid #E9EDF4', background:'#F8FAFC', fontSize:11, cursor:'pointer', color:'#475569' }}>
-    🔑 Resetează   </button>
+                    <span style={{ fontFamily:'monospace', letterSpacing:2, color:'#94A3B8' }}>••••••••</span>
+                    <button onClick={() => {
+                      const noua = window.prompt('Parolă nouă (minim 8 caractere):')
+                      if (!noua) return
+                      if (noua.length < 8) { alert('Parola trebuie să aibă minim 8 caractere!'); return }
+                      reseteazaParola(u.id, noua).then(r => {
+                        if (r.ok) alert('✓ Parolă schimbată!')
+                        else alert('Eroare: ' + r.error)
+                      })
+                    }} style={{ background:'none', border:'none', cursor:'pointer', fontSize:11, color:'#1A3A6B', padding:'2px 6px', fontWeight:500 }} title="Resetează parola">
+                      🔑 Resetează
+                    </button>
                   </div>
                 </div>
                 <div style={{ display:'flex', gap:6 }}>
@@ -382,7 +374,7 @@ setUserModal(null)
                   <button onClick={() => setUserModal(null)} style={{ background:'none', border:'none', fontSize:18, cursor:'pointer', color:'#94A3B8' }}>✕</button>
                 </div>
                 <div className="fg"><label className="fl">Nume</label><input className="fi" value={userForm.nume} onChange={e => setUserForm({...userForm,nume:e.target.value})} placeholder="ex: Olar Svitlana" /></div>
-                <div className="fg"><label className="fl">Parolă</label><input className="fi" value={userForm.parola} onChange={e => setUserForm({...userForm,parola:e.target.value})} placeholder={userModal==='add'?'Parolă nouă':'Lasă neschimbat'} /></div>
+                <div className="fg"><label className="fl">Parolă</label><input className="fi" type="password" value={userForm.parola} onChange={e => setUserForm({...userForm,parola:e.target.value})} placeholder={userModal==='add'?'Min 8 caractere':'Lasă neschimbat'} /></div>
                 <div className="fg"><label className="fl">Rol</label>
                   <select className="fi" value={userForm.rol} onChange={e => setUserForm({...userForm,rol:e.target.value})}>
                     {ROLURI.map(r => <option key={r} value={r}>{ROL_LABELS[r]}</option>)}
@@ -626,7 +618,7 @@ setUserModal(null)
                   <div>
                     <div className="r2">
                       <div className="fg"><label className="fl">Nume</label><input className="fi" value={angajatForm.nume} onChange={e=>setAngajatForm(p=>({...p,nume:e.target.value}))} /></div>
-                      <div className="fg"><label className="fl">Parolă clock-in</label><input className="fi" value={angajatForm.parola} onChange={e=>setAngajatForm(p=>({...p,parola:e.target.value}))} /></div>
+                      <div className="fg"><label className="fl" style={{color:'#94A3B8'}}>Parola se setează în Utilizatori</label><div style={{ fontSize:11, color:'#94A3B8', padding:'10px 0' }}>Mergi la tab "👥 Utilizatori" → 🔑 Resetează</div></div>
                     </div>
                     <div className="r2">
                       <div className="fg"><label className="fl">Oră start</label><input type="time" className="fi" value={angajatForm.program_start} onChange={e=>setAngajatForm(p=>({...p,program_start:e.target.value}))} /></div>
@@ -649,7 +641,7 @@ setUserModal(null)
                     </div>
                     <div style={{ flex:1 }}>
                       <div style={{ fontWeight:600, color:'#0F2344', fontSize:13 }}>{a.nume}</div>
-                      <div style={{ fontSize:11, color:'#94A3B8' }}>{a.program_start} — {a.program_end} · {a.tarif} RON/curățenie · Parolă: {a.parola}</div>
+                      <div style={{ fontSize:11, color:'#94A3B8' }}>{a.program_start} — {a.program_end} · {a.tarif} RON/curățenie</div>
                     </div>
                     <button onClick={() => setAngajatForm({...a})} style={{ padding:'5px 10px', borderRadius:8, border:'1px solid #E9EDF4', background:'#F8FAFC', fontSize:11, cursor:'pointer', color:'#475569' }}>✏️</button>
                   </div>
