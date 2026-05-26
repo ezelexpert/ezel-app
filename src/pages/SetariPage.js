@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { adaugaUtilizator, reseteazaParola } from '../lib/auth'
 
 const ROLURI = ['admin', 'curatenie', 'lenjerii']
 const ROL_LABELS = { admin: '👔 Manager', curatenie: '🧹 Curățenie', lenjerii: '🧺 Lenjerii' }
@@ -115,11 +116,10 @@ const DEFAULT_SETARI = {
     limba_implicita: 'bilingual', perioada_min: 1, perioada_max: 12,
     email_template: 'Vă transmitem atașat contractul de închiriere nr. {nr_contract}.',
   },
-  angajati: {
-    lista: [
-      { id:'sv', nume:'Olar Svitlana', parola:'1997', program_start:'07:30', program_end:'16:00', tarif:10, activ:true },
-      { id:'fa', nume:'Farcas Adela Georgiana', parola:'1998', program_start:'07:30', program_end:'16:00', tarif:10, activ:true },
-    ],
+angajati: {
+     lista: [
+     { id:'sv', nume:'Olar Svitlana', program_start:'07:30', program_end:'16:00', tarif:10, activ:true },
+      { id:'fa', nume:'Farcas Adela Georgiana', program_start:'07:30', program_end:'16:00', tarif:10, activ:true },     ],
     supervisor: 'Dani Milas',
   },
   locatii: [{ id:'loc1', nume:'Ovidiu Densușianu', adresa:'str. Ovidiu Densușianu nr. 1A, Oradea', email:'' }],
@@ -150,7 +150,6 @@ export default function SetariPage() {
   const [loadingUsers, setLoadingUsers] = useState(true)
   const [userModal, setUserModal] = useState(null)
   const [userForm, setUserForm] = useState({ nume:'', parola:'', rol:'curatenie', activ:true })
-  const [showParola, setShowParola] = useState({})
   const [saved, setSaved] = useState({})
   const [log, setLog] = useState([])
   const [logLogin, setLogLogin] = useState([])
@@ -163,11 +162,15 @@ export default function SetariPage() {
   useEffect(() => { loadUtilizatori(); loadSetariDB() }, [])
 
   async function loadUtilizatori() {
-    setLoadingUsers(true)
-    const { data } = await supabase.from('utilizatori').select('*').order('rol').order('nume')
-    setUtilizatori(data || [])
-    setLoadingUsers(false)
-  }
+setLoadingUsers(true)
+const { data } = await supabase
+.from('utilizatori_public')  // VIEW fără parola_hash
+.select('*')
+.order('rol')
+.order('nume')
+setUtilizatori(data || [])
+setLoadingUsers(false)
+}
 
   async function loadSetariDB() {
     const { data } = await supabase.from('setari').select('*')
@@ -203,38 +206,59 @@ export default function SetariPage() {
       document.documentElement.style.setProperty('--bg', setari.culori.bg)
     }
     // Sincronizeaza angajatii cu tabelul utilizatori
-    if (section === 'angajati') {
-      for (const a of setari.angajati.lista || []) {
-        const { data: existing } = await supabase.from('utilizatori')
-          .select('id, parola').eq('nume', a.nume).single()
-        if (existing) {
-          // Actualizeaza parola daca s-a schimbat
-          if (existing.parola !== a.parola) {
-            await supabase.from('utilizatori').update({ parola: a.parola, activ: a.activ }).eq('id', existing.id)
-          }
-        }
-      }
-    }
+  
     setSaved(p => ({ ...p, [section]: true }))
     setTimeout(() => setSaved(p => ({ ...p, [section]: false })), 2500)
   }
 
   // ── Utilizatori ──────────────────────────────────────────
-  async function saveUser() {
-    if (!userForm.nume.trim() || !userForm.parola.trim()) {
-      setUserError('Completează numele și parola!')
-      return
-    }
-    setUserError('')
-    if (userModal === 'add') {
-      await supabase.from('utilizatori').insert({ nume:userForm.nume.trim(), parola:userForm.parola.trim(), rol:userForm.rol, activ:userForm.activ })
-    } else {
-      const u = { nume:userForm.nume.trim(), rol:userForm.rol, activ:userForm.activ }
-      if (userForm.parola !== '••••••') u.parola = userForm.parola.trim()
-      await supabase.from('utilizatori').update(u).eq('id', userModal)
-    }
-    await loadUtilizatori(); setUserModal(null)
+async function saveUser() {
+if (!userForm.nume.trim()) {
+setUserError('Completează numele!')
+return
+}
+setUserError('')
+if (userModal === 'add') {
+if (!userForm.parola.trim() || userForm.parola.length < 8) {
+setUserError('Parola trebuie să aibă minim 8 caractere!')
+return
+}
+const result = await adaugaUtilizator(
+  userForm.nume.trim(),
+  userForm.parola.trim(),
+  userForm.rol
+)
+
+if (result.error) {
+  setUserError(result.error)
+  return
+}
+} else {
+// Update existing user
+const updates = {
+nume: userForm.nume.trim(),
+rol: userForm.rol,
+activ: userForm.activ
+}
+// Update nume/rol/activ direct (parola_hash nu se modifică)
+await supabase.from('utilizatori').update(updates).eq('id', userModal)
+
+// Dacă s-a schimbat parola, folosește RPC
+if (userForm.parola && userForm.parola !== '••••••') {
+  if (userForm.parola.length < 8) {
+    setUserError('Parola trebuie să aibă minim 8 caractere!')
+    return
   }
+  const result = await reseteazaParola(userModal, userForm.parola.trim())
+  if (result.error) {
+    setUserError(result.error)
+    return
+  }
+}
+}
+await loadUtilizatori()
+setUserModal(null)
+}
 
   async function toggleActiv(u) {
     await supabase.from('utilizatori').update({ activ: !u.activ }).eq('id', u.id)
@@ -321,10 +345,23 @@ export default function SetariPage() {
                   </div>
                   <div style={{ fontSize:11, color:'#94A3B8', marginTop:2, display:'flex', gap:6, alignItems:'center' }}>
                     <span>Parolă:</span>
-                    <span style={{ fontFamily:'monospace', letterSpacing:2 }}>{showParola[u.id] ? u.parola : '••••••'}</span>
-                    <button onClick={() => setShowParola(p=>({...p,[u.id]:!p[u.id]}))} style={{ background:'none', border:'none', cursor:'pointer', fontSize:11, color:'#94A3B8', padding:0 }}>
-                      {showParola[u.id]?'🙈':'👁'}
-                    </button>
+                     <span style={{ fontFamily:'monospace', letterSpacing:2, color:'#94A3B8' }}>
+     ••••••••
+   </span>
+   <button
+    onClick={() => {
+       const noua = window.prompt('Parolă nouă (min 8 caractere):')
+      if (noua && noua.length >= 8) {
+        reseteazaParola(u.id, noua).then(r => {
+           if (r.ok) alert('Parolă schimbată!')
+          else alert(r.error)
+         })
+    } else if (noua) {
+       alert('Parola trebuie să aibă minim 8 caractere!')
+     }
+   }}
+   style={{ padding:'5px 10px', borderRadius:8, border:'1px solid #E9EDF4', background:'#F8FAFC', fontSize:11, cursor:'pointer', color:'#475569' }}>
+    🔑 Resetează   </button>
                   </div>
                 </div>
                 <div style={{ display:'flex', gap:6 }}>
