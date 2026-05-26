@@ -60,7 +60,6 @@ function ModalRezervare({ apt, seg, apts, curatenii, onClose, onSave, onContract
     observatii: '',
   })
   const [saving, setSaving] = useState(false)
-  const [showLocuri, setShowLocuri] = useState(false)
   const [curForm, setCurForm] = useState({
     tip_curatenie: 'intretinere',
     data_programata: new Date().toISOString().split('T')[0],
@@ -91,7 +90,7 @@ function ModalRezervare({ apt, seg, apts, curatenii, onClose, onSave, onContract
       nota: form.nota,
       prosop: form.prosop,
       nr_locuri: Number(form.nr_locuri),
-      status_plata: form.status_plata,
+
       status: form.firma ? (form.data_elib ? 'elib' : 'activ') : 'liber',
     }
     await onSave(apt.nr, fields)
@@ -150,40 +149,8 @@ function ModalRezervare({ apt, seg, apts, curatenii, onClose, onSave, onContract
               {form.data_elib ? ` · Elib. ${form.data_elib}` : ''}
             </div>
           </div>
-          {/* Nr locuri - buton separat */}
-          {!showLocuri ? (
-            <button onClick={() => setShowLocuri(true)}
-              style={{ fontSize:11, padding:'4px 8px', borderRadius:8, border:'1px solid #E9EDF4',
-                background:'#F8FAFC', color:'#475569', cursor:'pointer', whiteSpace:'nowrap', fontWeight:500 }}>
-              🛏 {apt?.nr_locuri||form.nr_locuri||2} locuri
-            </button>
-          ) : (
-            <div style={{ display:'flex', alignItems:'center', gap:4 }}>
-              {[1,2,3,4,5,6].map(n => (
-                <div key={n} onClick={() => { setForm(p=>({...p,nr_locuri:n})); setShowLocuri(false) }}
-                  style={{ width:28, height:28, borderRadius:7, display:'flex', alignItems:'center',
-                    justifyContent:'center', cursor:'pointer', fontWeight:700, fontSize:11,
-                    border:'2px solid',
-                    borderColor:n===(form.nr_locuri||apt?.nr_locuri||2)?'#0F2344':'#E9EDF4',
-                    background:n===(form.nr_locuri||apt?.nr_locuri||2)?'#0F2344':'#fff',
-                    color:n===(form.nr_locuri||apt?.nr_locuri||2)?'#fff':'#475569' }}>
-                  {n}
-                </div>
-              ))}
-              <button onClick={() => setShowLocuri(false)}
-                style={{ background:'none', border:'none', cursor:'pointer', color:'#94A3B8', fontSize:14, padding:'0 2px' }}>✕</button>
-            </div>
-          )}
-          {/* Status plata */}
-          <select value={form.status_plata} onChange={e=>setForm(p=>({...p,status_plata:e.target.value}))}
-            style={{ fontSize:11, padding:'4px 8px', borderRadius:8, border:'1px solid #E9EDF4',
-              background: form.status_plata==='platit'?'#E8F7EF':form.status_plata==='partial'?'#FEF3C7':'#FEE2E2',
-              color: form.status_plata==='platit'?'#1A7A4A':form.status_plata==='partial'?'#B45309':'#B91C1C',
-              fontWeight:600, cursor:'pointer' }}>
-            <option value="neplatit">⏳ Neplatit</option>
-            <option value="partial">◐ Parțial</option>
-            <option value="platit">✓ Platit</option>
-          </select>
+
+
           <button onClick={onClose} style={{ background:'none', border:'none', fontSize:20, cursor:'pointer', color:'#94A3B8' }}>✕</button>
         </div>
 
