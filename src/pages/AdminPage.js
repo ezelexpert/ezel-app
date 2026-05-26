@@ -95,7 +95,6 @@ const NAV_GROUPS = [
   {
     key: 'date', label: '💼 Date',
     items: [
-      { label: '🚪 Apartamente', tab: 1 },
       { label: '🏢 Firme', tab: 2 },
       { label: '📋 Istoric', tab: 3 },
     ]
@@ -302,15 +301,20 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
       }
     }
 
-    // Actualizeaza nota si prosop pentru toate apartamentele aceleiasi firme
-    if (fields.firma && fields.firma.trim() && (fields.nota || fields.prosop !== undefined)) {
-      const aceeasi = apts.filter(a => a.firma === fields.firma && a.nr !== nr)
-      const updateFields = {}
-      if (fields.nota) updateFields.nota = fields.nota
-      if (fields.prosop !== undefined) updateFields.prosop = fields.prosop
-      if (aceeasi.length > 0 && Object.keys(updateFields).length > 0) {
-        await updateApartamenteMultiple(aceeasi.map(a => a.nr), updateFields)
-        setApts(prev => prev.map(a => a.firma === fields.firma && a.nr !== nr ? { ...a, ...updateFields } : a))
+    // Verifica nota goala - intreaba daca e ok
+    if (fields.firma && fields.firma.trim() && !fields.nota) {
+      const aptCurentNota = aptCurent?.nota
+      if (aptCurentNota) {
+        // Apartamentul avea nota, acum e goala - intreaba
+        const ok = await new Promise(res => {
+          toast.confirm(
+            `Nota era "${aptCurentNota}" — lași fără notă (ex: c/l)?`,
+            () => res(true)
+          )
+          setTimeout(() => res(true), 8000) // default ok
+        })
+        // daca nu confirma, restaureaza nota
+        if (!ok) fields.nota = aptCurentNota
       }
     }
 
@@ -633,16 +637,77 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
         {/* APARTAMENTE - Timeline view */}
         {tab === 1 && (
           <div>
+            {/* Toolbar apartamente */}
+            <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap', padding:'10px 14px',
+              background:'#fff', borderRadius:14, border:'1px solid #E9EDF4',
+              boxShadow:'0 1px 4px rgba(15,35,68,.06)' }}>
+              <button className="btn btn-p"
+                onClick={() => { setEditData({ tip:'simplu', status:'liber', plata:'OP', tip_serviciu:'cazare' }); setModal('addApt') }}>
+                + Apartament nou
+              </button>
+              <button className="btn" style={{ background:'#EBF1FB', color:'#1F3864', border:'1px solid #C7DAFF' }}
+                onClick={() => { setEditData({}); setModal('editLocuri') }}>
+                🛏 Modifică locuri
+              </button>
+              <button className="btn btn-o"
+                onClick={() => { setEditData({}); setModal('medit') }}
+                disabled={selApts.size === 0}>
+                ✏️ Editează {selApts.size > 0 ? `(${selApts.size})` : 'multiple'}
+              </button>
+              <button className="btn btn-g"
+                onClick={() => { setEditData({ data_programata: new Date().toISOString().split('T')[0], tip_curatenie:'intretinere' }); setModal('mcur') }}
+                disabled={selApts.size === 0}>
+                🧹 Curățenie {selApts.size > 0 ? `(${selApts.size})` : 'multiple'}
+              </button>
+              <button className="btn"
+                onClick={async () => {
+                  if (!window.confirm('Generezi automat curățeniile pentru săptămâna viitoare?')) return
+                  const r = await genereazaSaptamana()
+                  r.programate > 0 ? toast.success(`✓ Programat ${r.programate} curățenii!`) : toast.info('Nimic de programat — toate sunt la zi')
+                  getCuratenie().then(c => setCuratenii(c))
+                }}>
+                🤖 Auto-programare
+              </button>
+              {selApts.size > 0 && (
+                <button className="btn" style={{ background:'#FEE2E2', color:'#B91C1C', border:'1px solid #FECACA' }}
+                  onClick={async () => {
+                    const list = Array.from(selApts)
+                    if (!window.confirm(`Ștergi curățeniile active pentru ${list.length} apartamente?`)) return
+                    for (const nr of list) {
+                      const { data: cur } = await supabase.from('curatenie').select('id').eq('nr_apt', nr).neq('status_curatenie','finalizata')
+                      if (cur) for (const c of cur) await stergeCuratenie(c.id)
+                    }
+                    getCuratenie().then(c => setCuratenii(c))
+                    clearSel()
+                    toast.success('Curățenii șterse')
+                  }}>
+                  🗑 Șterge curățenii ({selApts.size})
+                </button>
+              )}
+              <div style={{ marginLeft:'auto', fontSize:12, color:'#94A3B8', alignSelf:'center' }}>
+                {selApts.size > 0
+                  ? `${selApts.size} selectate — click pe apartament în lista stângă`
+                  : 'Click pe apartament în lista stângă pentru a selecta'}
+              </div>
+            </div>
             <RezervariPage
               apts={apts}
               curatenii={curatenii}
+              selApts={selApts}
+              onSelApt={(nr) => toggleSel(nr)}
               onEditApt={(apt) => { setEditData({ ...apt }); setModal('editApt') }}
+              onSaveApt={async (nr, fields) => {
+                setApts(prev => prev.map(a => a.nr === nr ? { ...a, ...fields } : a))
+                await updateApartament(nr, fields)
+                const c = await getCuratenie(); setCuratenii(c)
+                toast.success('✓ Salvat')
+              }}
+              onContract={(apt, form) => {
+                setEditData({ ...apt, ...form })
+                setModal('editApt')
+                toast.info('Deschide tab Contract din modal')
+              }}
             />
-            <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button className="btn" style={{ background:'#EBF1FB', color:'#1F3864', border:'1px solid #90B8E8' }} onClick={() => { setEditData({}); setModal('editLocuri') }}>🛏 Modifică locuri</button>
-              <button className="btn btn-o" onClick={() => { setEditData({}); setModal('medit') }} disabled={selApts.size === 0}>✏️ Editează multiple</button>
-              <button className="btn btn-g" onClick={() => { setEditData({ data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('mcur') }} disabled={selApts.size === 0}>🧹 Curățenie multiple</button>
-            </div>
           </div>
         )}
 
@@ -655,7 +720,15 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
               .filter(([n]) => !srchFirma || n.toLowerCase().includes(srchFirma.toLowerCase()))
               .sort((a,b) => b[1].apts.length - a[1].apts.length)
               .map(([name, v]) => {
-                const rev = v.apts.filter(a => a.status==='activ').reduce((s,a) => s+Number(a.pret)*30, 0)
+                // Venit corect: cazare = pret*zile de la checkin, chirie = pret fix
+                const aziF = new Date()
+                const primaZiLunaF = new Date(aziF.getFullYear(), aziF.getMonth(), 1)
+                const rev = v.apts.filter(a => a.status==='activ' && Number(a.pret)>0).reduce((s,a) => {
+                  if (a.tip_serviciu === 'chirie') return s + Number(a.pret) + Number(a.pret_utilitati||0)
+                  const start = a.data_checkin && new Date(a.data_checkin) > primaZiLunaF ? new Date(a.data_checkin) : primaZiLunaF
+                  const zile = Math.max(1, Math.round((aziF - start) / 86400000))
+                  return s + zile * Number(a.pret)
+                }, 0)
                 const elibApts = v.apts.filter(a => a.status==='elib')
                 // Statistici din istoric pentru aceasta firma
                 const istoricFirma = istoric.filter(r => r.firma === name)
@@ -693,12 +766,22 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
                       </div>
                     </div>
                     {elibApts.length > 0 && <div className="aw" style={{ fontSize: 11 }}>⚠️ Eliberează: {elibApts.map(a => `AP${a.nr}${a.data_elib ? ' pe ' + a.data_elib : ''}`).join(', ')}</div>}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                       {v.apts.map(a => (
-                        <span key={a.nr} className={`badge ${a.status==='activ'?'bb':a.status==='elib'?'br2':'bk'}`}
-                          style={{ cursor: 'pointer' }} onClick={() => { setEditData({ ...a }); setModal('editApt') }}>
-                          {a.nr}{a.nota ? ` · ${a.nota}` : ''}
-                        </span>
+                        <div key={a.nr}
+                          onClick={() => { setEditData({ ...a }); setModal('editApt') }}
+                          style={{ cursor:'pointer', padding:'5px 10px', borderRadius:10, fontSize:11, fontWeight:500,
+                            background: a.status==='activ'?'#EEF4FF':a.status==='elib'?'#FEE2E2':'#F1F5F9',
+                            color: a.status==='activ'?'#1A3A6B':a.status==='elib'?'#B91C1C':'#64748B',
+                            border: `1px solid ${a.status==='activ'?'#C7DAFF':a.status==='elib'?'#FECACA':'#E9EDF4'}`,
+                            display:'flex', alignItems:'center', gap:5 }}>
+                          <span style={{ fontWeight:700 }}>AP {a.nr}</span>
+                          <span style={{ opacity:.6 }}>·</span>
+                          <span>{a.pret} RON{a.tip_serviciu==='chirie'?'/lună':'/noapte'}</span>
+                          {a.nota && <><span style={{ opacity:.6 }}>·</span><span style={{ color:'#5B21B6' }}>{a.nota}</span></>}
+                          {a.prosop && <span title="Prosop inclus">🛁</span>}
+                          {a.data_elib && <span style={{ color:'#B91C1C', fontSize:10 }}>→{a.data_elib.substring(5)}</span>}
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -807,6 +890,16 @@ Vrei să actualizez toate apartamentele cu "${similar.firma}" la noul nume "${fi
             apts={apts}
             curatenii={curatenii}
             onEditApt={(apt) => { setEditData({...apt}); setModal('editApt') }}
+            onSaveApt={async (nr, fields) => {
+              setApts(prev => prev.map(a => a.nr === nr ? { ...a, ...fields } : a))
+              await updateApartament(nr, fields)
+              const c = await getCuratenie(); setCuratenii(c)
+              toast.success('✓ Salvat')
+            }}
+            onContract={(apt, form) => {
+              setEditData({ ...apt, ...form })
+              setModal('editApt')
+            }}
           />
         )}
 
