@@ -837,8 +837,8 @@ export default function RezervariPage({
         <div style={{ overflowX:'auto', borderRadius:14, border:'1px solid #E9EDF4', background:'#fff' }}>
           <table className="tbl">
             <thead><tr>
-              <th>Apt</th><th>Firmă</th><th>Tip</th><th>Check-in</th><th>Elib.</th>
-              <th>Zile rămase</th><th>Preț</th><th>Total est.</th><th>Plată</th><th>Notă</th>
+              <th>Apt</th><th>Firmă</th><th>Contact</th><th>Tip</th><th>Check-in</th><th>Elib.</th>
+              <th>Zile rămase</th><th>Preț</th><th>Total est.</th><th>Notă</th>
             </tr></thead>
             <tbody>
               {apts.filter(a=>a.firma&&['activ','elib'].includes(a.status))
@@ -855,17 +855,19 @@ export default function RezervariPage({
                         <div style={{width:8,height:8,borderRadius:'50%',background:firmaColor(a.firma),flexShrink:0}}/>
                         {a.firma}
                       </div></td>
+                      <td style={{fontSize:11}}>
+                        {a.contact_nume && <div style={{fontWeight:500,color:'#0F2344'}}>{a.contact_nume}</div>}
+                        {a.contact_telefon && <a href={`tel:${a.contact_telefon}`} style={{color:'#1A3A6B',textDecoration:'none',display:'block'}}>📞 {a.contact_telefon}</a>}
+                        {a.contact_email && <a href={`mailto:${a.contact_email}`} style={{color:'#1A3A6B',textDecoration:'none',display:'block'}}>✉️ {a.contact_email}</a>}
+                        {!a.contact_nume && !a.contact_telefon && !a.contact_email && <span style={{color:'#94A3B8'}}>—</span>}
+                      </td>
                       <td><span className={a.tip_serviciu==='chirie'?'badge bk':'badge bb'} style={{fontSize:10}}>{a.tip_serviciu||'cazare'}</span></td>
                       <td style={{fontSize:12}}>{a.data_checkin||'—'}</td>
                       <td style={{fontSize:12}}>{a.data_elib||'—'}</td>
                       <td>{zR!==null?<span style={{fontWeight:700,color:zR<=3?'#B91C1C':zR<=7?'#B45309':'#1A7A4A'}}>{zR<=0?'Azi':zR===1?'Mâine':`${zR}z`}</span>:<span style={{color:'#94A3B8'}}>—</span>}</td>
                       <td style={{fontWeight:600}}>{a.pret?`${a.pret} RON`:'—'}</td>
                       <td style={{fontWeight:700,color:'#1A3A6B'}}>{tot>0?`${tot.toLocaleString()} RON`:'—'}</td>
-                      <td><span style={{fontSize:10,padding:'2px 8px',borderRadius:99,fontWeight:600,
-                        background:a.status_plata==='platit'?'#E8F7EF':'#FEF3C7',
-                        color:a.status_plata==='platit'?'#1A7A4A':'#B45309'}}>
-                        {a.status_plata==='platit'?'✓ Platit':'⏳ Neplatit'}
-                      </span></td>
+
                       <td style={{fontSize:11,color:'#5B21B6'}}>{a.nota||'—'}</td>
                     </tr>
                   )
@@ -873,6 +875,53 @@ export default function RezervariPage({
             </tbody>
           </table>
         </div>
+
+          {/* Tabel istoric rezervari */}
+          <div style={{ fontWeight:600, color:'#0F2344', margin:'20px 0 10px', fontSize:13 }}>
+            📋 Istoric rezervări finalizate
+          </div>
+          <div style={{ overflowX:'auto', borderRadius:14, border:'1px solid #E9EDF4', background:'#fff' }}>
+            <table className="tbl">
+              <thead><tr>
+                <th>Apt</th><th>Firmă</th><th>Contact</th><th>Tip</th>
+                <th>Check-in</th><th>Check-out</th><th>Nopți</th><th>Total</th>
+              </tr></thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={8} style={{textAlign:'center',padding:24,color:'#94A3B8'}}>Se încarcă...</td></tr>
+                ) : rezervari.filter(r =>
+                    (!srch||(r.nr_apt+(r.firma||'')).toLowerCase().includes(srch.toLowerCase()))&&
+                    (!fltFirma||r.firma===fltFirma)&&(!fltTip||r.tip_serviciu===fltTip)
+                  ).map(r => (
+                  <tr key={r.id}>
+                    <td><strong>{r.nr_apt}</strong></td>
+                    <td>
+                      <div style={{display:'flex',alignItems:'center',gap:6}}>
+                        <div style={{width:8,height:8,borderRadius:'50%',background:firmaColor(r.firma),flexShrink:0}}/>
+                        {r.firma}
+                      </div>
+                    </td>
+                    <td style={{fontSize:11}}>
+                      {r.contact_nume&&<div style={{fontWeight:500,color:'#0F2344'}}>{r.contact_nume}</div>}
+                      {r.contact_telefon&&<a href={`tel:${r.contact_telefon}`} style={{color:'#1A3A6B',textDecoration:'none',display:'block'}}>📞 {r.contact_telefon}</a>}
+                      {r.contact_email&&<a href={`mailto:${r.contact_email}`} style={{color:'#1A3A6B',textDecoration:'none',display:'block'}}>✉️ {r.contact_email}</a>}
+                      {!r.contact_nume&&!r.contact_telefon&&<span style={{color:'#94A3B8'}}>—</span>}
+                    </td>
+                    <td><span className="badge bk" style={{fontSize:10}}>{r.tip_serviciu||'cazare'}</span></td>
+                    <td style={{fontSize:12}}>{r.data_checkin}</td>
+                    <td style={{fontSize:12}}>{r.data_checkout}</td>
+                    <td style={{textAlign:'center'}}>{r.nr_nopti}</td>
+                    <td style={{fontWeight:700,color:'#1A3A6B'}}>{Number(r.total||0).toLocaleString()} RON</td>
+                  </tr>
+                ))}
+                {!loading && rezervari.length === 0 && (
+                  <tr><td colSpan={8} style={{textAlign:'center',padding:24,color:'#94A3B8'}}>
+                    Niciun istoric. Se populează automat când eliberezi apartamente.
+                  </td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
       )}
 
       {/* ══ HEATMAP ══ */}
