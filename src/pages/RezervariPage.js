@@ -834,6 +834,7 @@ export default function RezervariPage({
 
       {/* ══ LISTA ══ */}
       {view==='lista'&&(
+        <>
         <div style={{ overflowX:'auto', borderRadius:14, border:'1px solid #E9EDF4', background:'#fff' }}>
           <table className="tbl">
             <thead><tr>
@@ -919,6 +920,7 @@ export default function RezervariPage({
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {/* ══ HEATMAP ══ */}
