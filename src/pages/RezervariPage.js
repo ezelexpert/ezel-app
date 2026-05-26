@@ -12,6 +12,14 @@ function diffZile(a, b) {
   return Math.round((d2-d1)/86400000)
 }
 function parseD(s) { if(!s) return null; const d=new Date(s+'T12:00:00'); return isNaN(d)?null:d }
+// Datele "deschise" sunt salvate ca 2099-12-31. Afișează ca "Deschis"
+const DATA_DESCHIS = '2099-12-31'
+function isDataDeschis(s) { return s === DATA_DESCHIS || (s && s.startsWith('2099')) }
+function formatData(s) {
+  if (!s) return '—'
+  if (isDataDeschis(s)) return 'Deschis'
+  return s
+}
 function normalizeData(d) {
   if (!d || !d.trim()) return ''
   const s = d.trim()
@@ -42,24 +50,28 @@ function firmaColor(firma) {
 }
 
 // ── Modal rezervare complet ───────────────────────────────────
-function ModalRezervare({ apt, seg, apts, curatenii, onClose, onSave, onContract }) {
+function ModalRezervare({ apt, seg, apts, curatenii, onClose, onSave, onContract, onReloadRezervari }) {
   const [activeTab, setActiveTab] = useState('detalii')
+  // Detectează dacă editezi o rezervare existentă, creezi una nouă cu interval (drag), sau ad-hoc
+  const editRez = apt?._editRezervare || null
+  const newRezervFromDrag = apt?._newRezerv ? { checkin: apt.data_checkin, checkout: apt.data_elib, tip: apt.tip_serviciu } : null
   const [form, setForm] = useState({
-    firma: apt?.firma || '',
-    tip_serviciu: apt?.tip_serviciu || 'cazare',
-    data_checkin: apt?.data_checkin || '',
-    data_elib: apt?.data_elib || '',
-    pret: apt?.pret || '',
-    pret_utilitati: apt?.pret_utilitati || 0,
-    utilitati_tip: apt?.utilitati_tip || 'fix',
-    plata: apt?.plata || 'OP',
-    nota: apt?.nota || '',
-    prosop: apt?.prosop || false,
-    nr_locuri: apt?.nr_locuri || 2,
-    status_plata: apt?.status_plata || 'neplatit',
-    observatii: '',
+    firma: editRez?.firma || '',
+    tip_serviciu: editRez?.tip_serviciu || newRezervFromDrag?.tip || 'cazare',
+    data_checkin: editRez?.data_checkin || newRezervFromDrag?.checkin || '',
+    data_elib: editRez?.data_checkout || newRezervFromDrag?.checkout || '',
+    pret: editRez?.pret || editRez?.pret_noapte || apt?.pret || '',
+    pret_utilitati: editRez?.pret_utilitati || 0,
+    utilitati_tip: editRez?.utilitati_tip || 'fix',
+    plata: editRez?.plata || 'OP',
+    nota: editRez?.nota || '',
+    prosop: editRez?.prosop || false,
+    nr_locuri: editRez?.nr_locuri || apt?.nr_locuri || 2,
+    status_plata: editRez?.status_plata || 'neplatit',
+    observatii: editRez?.observatii || '',
   })
   const [saving, setSaving] = useState(false)
+  const [eroare, setEroare] = useState('')
   const [curForm, setCurForm] = useState({
     tip_curatenie: 'intretinere',
     data_programata: new Date().toISOString().split('T')[0],
@@ -78,20 +90,110 @@ function ModalRezervare({ apt, seg, apts, curatenii, onClose, onSave, onContract
 
   async function handleSave() {
     setSaving(true)
-    const fields = {
-      firma: form.firma || '',
+    setEroare('')
+
+    // Validări
+    if (!form.firma.trim()) {
+      setEroare('Completează firma!')
+      setSaving(false)
+      return
+    }
+    const checkin = normalizeData(form.data_checkin)
+    const checkout = normalizeData(form.data_elib)
+    if (!checkin) {
+      setEroare('Completează data check-in!')
+      setSaving(false)
+      return
+    }
+    if (!checkout) {
+      setEroare('Completează data check-out!')
+      setSaving(false)
+      return
+    }
+    if (checkout <= checkin) {
+      setEroare('Check-out trebuie să fie după check-in!')
+      setSaving(false)
+      return
+    }
+
+    // Verifică suprapuneri cu alte rezervări ale acestui apartament
+    const { data: existRez } = await supabase
+      .from('rezervari')
+      .select('id, firma, data_checkin, data_checkout, status')
+      .eq('nr_apt', String(apt.nr))
+      .neq('status', 'anulata')
+
+    const conflict = (existRez || []).find(r => {
+      if (editRez && r.id === editRez.id) return false  // exclude rezervarea curentă din verificare
+      // Suprapunere: NOT (existing_end <= new_start OR existing_start >= new_end)
+      return !(r.data_checkout <= checkin || r.data_checkin >= checkout)
+    })
+    if (conflict) {
+      setEroare(`Suprapunere cu: ${conflict.firma} (${conflict.data_checkin} → ${formatData(conflict.data_checkout)})`)
+      setSaving(false)
+      return
+    }
+
+    // Calculează nr_nopti și total
+    const nrNoptiCalc = Math.round((new Date(checkout) - new Date(checkin)) / 86400000)
+    const pret = Number(form.pret) || 0
+    const aziDate = new Date().toISOString().split('T')[0]
+    const status = checkin > aziDate ? 'rezervata' : 'activa'
+
+    const payload = {
+      nr_apt: String(apt.nr),
+      firma: form.firma.trim(),
       tip_serviciu: form.tip_serviciu || 'cazare',
-      data_checkin: normalizeData(form.data_checkin) || null,
-      data_elib: normalizeData(form.data_elib) || null,
-      pret: Number(form.pret) || 0,
+      tip_apt: apt.tip || 'simplu',
+      data_checkin: checkin,
+      data_checkout: checkout,
+      pret, pret_noapte: pret,
       pret_utilitati: Number(form.pret_utilitati) || 0,
       utilitati_tip: form.utilitati_tip || 'fix',
       plata: form.plata || 'OP',
       nota: form.nota || '',
       prosop: form.prosop === true,
-      status: form.firma ? (normalizeData(form.data_elib) ? 'elib' : 'activ') : 'liber',
+      nr_locuri: Number(form.nr_locuri) || 2,
+      status_plata: form.status_plata || 'neplatit',
+      observatii: form.observatii || '',
+      nr_nopti: nrNoptiCalc,
+      total: nrNoptiCalc * pret,
+      status
     }
-    await onSave(apt.nr, fields)
+
+    let error = null
+    if (editRez) {
+      // Update rezervare existentă
+      const { error: e } = await supabase.from('rezervari').update(payload).eq('id', editRez.id)
+      error = e
+    } else {
+      // Insert rezervare nouă
+      const { error: e } = await supabase.from('rezervari').insert(payload)
+      error = e
+    }
+
+    if (error) {
+      if (error.code === '23P01' || error.message?.includes('rezervari_no_overlap')) {
+        setEroare('Suprapunere cu altă rezervare')
+      } else {
+        setEroare('Eroare: ' + error.message)
+      }
+      setSaving(false)
+      return
+    }
+
+    // Reload rezervări în parent (apartamentul se sincronizează automat prin trigger)
+    if (onReloadRezervari) await onReloadRezervari()
+    setSaving(false)
+    onClose()
+  }
+
+  async function handleStergeRezervare() {
+    if (!editRez) return
+    if (!window.confirm(`Ștergi rezervarea pentru ${editRez.firma} (${editRez.data_checkin} → ${formatData(editRez.data_checkout)})?`)) return
+    setSaving(true)
+    await supabase.from('rezervari').delete().eq('id', editRez.id)
+    if (onReloadRezervari) await onReloadRezervari()
     setSaving(false)
     onClose()
   }
@@ -112,12 +214,24 @@ function ModalRezervare({ apt, seg, apts, curatenii, onClose, onSave, onContract
   }
 
   async function handleSetLiber() {
-    const fields = {
-      firma:'', nota:'', data_elib:null, pret:0, pret_utilitati:0,
-      tip_serviciu:'cazare', utilitati_tip:'fix', data_checkin:null,
-      status:'liber'
+    // În sistemul nou: setarea apartamentului liber = ștergerea rezervării active
+    // Caută rezervarea activă acum
+    const { data: rezAct } = await supabase
+      .from('rezervari').select('*')
+      .eq('nr_apt', String(apt.nr))
+      .lte('data_checkin', aziStr)
+      .gte('data_checkout', aziStr)
+      .neq('status', 'anulata')
+      .limit(1).maybeSingle()
+
+    if (!rezAct) {
+      alert('Apartamentul nu are rezervare activă acum.')
+      return
     }
-    await onSave(apt.nr, fields)
+
+    if (!window.confirm(`Ștergi rezervarea activă a apartamentului (${rezAct.firma})?`)) return
+    await supabase.from('rezervari').delete().eq('id', rezAct.id)
+    if (onReloadRezervari) await onReloadRezervari()
     onClose()
   }
 
@@ -268,15 +382,25 @@ function ModalRezervare({ apt, seg, apts, curatenii, onClose, onSave, onContract
               <span style={{ fontSize:13, fontWeight:500, color:'#0F2344' }}>🛁 Prosop inclus</span>
             </div>
 
+            {/* Mesaj eroare */}
+            {eroare && (
+              <div style={{ padding:'10px 12px', background:'#FEE2E2', border:'1px solid #FECACA',
+                borderRadius:8, color:'#B91C1C', fontSize:13, marginBottom:8 }}>
+                ⚠️ {eroare}
+              </div>
+            )}
+
             {/* Actiuni */}
             <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
               <button className="btn btn-p" style={{ flex:1 }} onClick={handleSave} disabled={saving}>
-                {saving ? '⏳...' : '✓ Salvează'}
+                {saving ? '⏳...' : (editRez ? '✓ Salvează modificările' : '✓ Salvează rezervarea')}
               </button>
-              <button className="btn" style={{ background:'#FEE2E2', color:'#B91C1C', border:'1px solid #FECACA' }}
-                onClick={handleSetLiber}>
-                🔓 Eliberează
-              </button>
+              {editRez && (
+                <button className="btn" style={{ background:'#FEE2E2', color:'#B91C1C', border:'1px solid #FECACA' }}
+                  onClick={handleStergeRezervare} disabled={saving}>
+                  🗑 Șterge
+                </button>
+              )}
               <button className="btn" onClick={onClose}>Anulează</button>
             </div>
           </div>
@@ -505,9 +629,16 @@ export default function RezervariPage({
   const startDate = useMemo(() => new Date(calAn, calLuna, 1), [calAn, calLuna])
 
   useEffect(() => {
-    supabase.from('rezervari').select('*').order('data_checkin', { ascending: false })
+    // Încarcă TOATE rezervările (active + rezervate + finalizate, dar fără anulate)
+    supabase.from('rezervari').select('*').neq('status','anulata').order('data_checkin', { ascending: false })
       .then(({ data }) => { setRezervari(data||[]); setLoading(false) })
   }, [])
+
+  // Reload rezervări (după save/delete)
+  async function reloadRezervari() {
+    const { data } = await supabase.from('rezervari').select('*').neq('status','anulata').order('data_checkin', { ascending: false })
+    setRezervari(data || [])
+  }
 
   useEffect(() => {
     const aziF = new Date()
@@ -537,33 +668,61 @@ export default function RezervariPage({
     const endDate = addZile(startDate, zile.length)
     const allApts = [...apts].sort((a,b)=>(parseInt(a.nr)||999)-(parseInt(b.nr)||999))
     const filtered = allApts.filter(a => {
-      const mQ = !srch||(a.nr+(a.firma||'')).toLowerCase().includes(srch.toLowerCase())
-      const mT = !fltTip||a.tip_serviciu===fltTip||(fltTip==='rezervat'&&a.status==='rezervat')
-      const mF = !fltFirma||a.firma===fltFirma
+      // Filtru search: caută în nr_apt + firme din rezervările lui
+      const aptRezervari = rezervari.filter(r => String(r.nr_apt) === String(a.nr))
+      const firmePeApt = aptRezervari.map(r => r.firma).join(' ')
+      const mQ = !srch||(a.nr+' '+firmePeApt).toLowerCase().includes(srch.toLowerCase())
+      // Filtru tip: bazat pe rezervările apartamentului
+      const mT = !fltTip || aptRezervari.some(r => {
+        if (fltTip === 'rezervat') return r.status === 'rezervata'
+        return r.tip_serviciu === fltTip
+      })
+      // Filtru firmă: are vreo rezervare cu firma asta
+      const mF = !fltFirma || aptRezervari.some(r => r.firma === fltFirma)
       return mQ&&mT&&mF
     })
     const map = {}
     filtered.forEach(apt => {
       const segs = []
-      const addSeg = (status, checkin, checkout, isViitor=false) => {
-        const segStart = checkin||addZile(azi,-90)
-        const segEnd = checkout||addZile(azi,90)
+      // Pentru fiecare rezervare a apartamentului, creează un segment
+      const rez = rezervari.filter(r => String(r.nr_apt) === String(apt.nr))
+      rez.forEach(r => {
+        const segStart = parseD(r.data_checkin) || addZile(azi,-90)
+        const segEnd = parseD(r.data_checkout) || addZile(azi,90)
         const visStart = segStart<startDate?startDate:segStart
         const visEnd = segEnd>endDate?endDate:segEnd
         if (visStart>=visEnd) return
-        segs.push({ status, isViitor, firma:isViitor?apt.rezervat_firma:apt.firma,
-          tip:apt.tip_serviciu||'cazare', pret:apt.pret, elib:apt.data_elib,
-          checkin:apt.data_checkin, offsetDays:diffZile(startDate,visStart),
-          lengthDays:diffZile(visStart,visEnd),
-          isStartClipped:segStart<startDate, isEndClipped:segEnd>endDate, apt })
-      }
-      if (apt.status==='activ'&&apt.firma) addSeg('activ',parseD(apt.data_checkin),parseD(apt.data_elib)||addZile(azi,90))
-      if (apt.status==='elib'&&apt.firma) addSeg('elib',parseD(apt.data_checkin),parseD(apt.data_elib))
-      if (apt.status==='rezervat') addSeg('rezervat',parseD(apt.rezervat_checkin),addZile(azi,90),true)
+
+        // Determine status display pentru culoare:
+        // - 'rezervata' (viitor) → rezervat (portocaliu)
+        // - 'activa' care s-a terminat (data_checkout <= azi) → elib (roșu)
+        // - 'activa' care e în curs sau viitor → activ (albastru)
+        let displayStatus = 'activ'
+        if (r.status === 'rezervata') displayStatus = 'rezervat'
+        else if (r.data_checkout && r.data_checkout <= aziStr) displayStatus = 'elib'
+
+        segs.push({
+          status: displayStatus,
+          rezervareId: r.id,
+          isViitor: r.status === 'rezervata',
+          firma: r.firma,
+          tip: r.tip_serviciu || 'cazare',
+          pret: r.pret || r.pret_noapte,
+          elib: r.data_checkout,
+          checkin: r.data_checkin,
+          status_plata: r.status_plata,
+          offsetDays: diffZile(startDate, visStart),
+          lengthDays: diffZile(visStart, visEnd),
+          isStartClipped: segStart<startDate,
+          isEndClipped: segEnd>endDate,
+          apt,
+          rezervare: r
+        })
+      })
       map[apt.nr] = segs
     })
     return { map, filtered }
-  }, [apts, startDate, zile, srch, fltTip, fltFirma, azi])
+  }, [apts, rezervari, startDate, zile, srch, fltTip, fltFirma, azi, aziStr])
 
   // Drag
   const handleMouseDown = useCallback((aptNr, dayIdx, e) => {
@@ -607,7 +766,7 @@ export default function RezervariPage({
     await onSaveApt(nr, fields)
   }
 
-  const firmeUnice = useMemo(() => [...new Set(apts.filter(a=>a.firma).map(a=>a.firma))].sort(), [apts])
+  const firmeUnice = useMemo(() => [...new Set(rezervari.filter(r=>r.firma).map(r=>r.firma))].sort(), [rezervari])
   const dragRange = dragState?.active ? { aptNr:dragState.aptNr, start:Math.min(dragState.startDay,dragState.endDay), end:Math.max(dragState.startDay,dragState.endDay) } : null
 
   // Heatmap
@@ -750,7 +909,16 @@ export default function RezervariPage({
                         onChange={e=>{e.stopPropagation();onSelApt(apt.nr)}}
                         style={{ flexShrink:0, cursor:'pointer', accentColor:'#1A3A6B' }}/>
                     )}
-                    <div style={{ flex:1, minWidth:0, cursor:'pointer' }} onClick={()=>setModalApt(apt)}>
+                    <div style={{ flex:1, minWidth:0, cursor:'pointer' }} onClick={()=>{
+                      // Caută rezervarea activă acum
+                      const aptRez = rezervari.filter(r => String(r.nr_apt) === String(apt.nr))
+                      const azi = aziStr
+                      const activa = aptRez.find(r => r.data_checkin <= azi && r.data_checkout > azi)
+                      const viitoare = aptRez.filter(r => r.data_checkin > azi).sort((a,b) => a.data_checkin > b.data_checkin ? 1 : -1)[0]
+                      // Editează activa, sau viitoarea cea mai apropiată, sau rezervare nouă
+                      const target = activa || viitoare
+                      setModalApt({...apt, _editRezervare: target || null})
+                    }}>
                       <div style={{ display:'flex', alignItems:'center', gap:4 }}>
                         <span style={{ fontWeight:700, fontSize:12, color:'#0F2344' }}>AP {apt.nr}</span>
                         {isDbl&&<span style={{ fontSize:9, background:'#EDE9FE', color:'#5B21B6', padding:'1px 5px', borderRadius:99 }}>2x</span>}
@@ -787,7 +955,7 @@ export default function RezervariPage({
                       const width=Math.max(seg.lengthDays*COL_W-4,4)
                       return (
                         <div key={si}
-                          onClick={()=>{setTooltip(null);setModalApt(seg.apt)}}
+                          onClick={()=>{setTooltip(null);setModalApt({...seg.apt, _editRezervare: seg.rezervare})}}
                           onMouseEnter={e=>{e.stopPropagation();setTooltip({seg,x:e.clientX,y:e.clientY})}}
                           onMouseLeave={()=>setTooltip(null)}
                           style={{ position:'absolute', left, top:5, height:ROW_H-10, width,
@@ -838,84 +1006,61 @@ export default function RezervariPage({
         <div style={{ overflowX:'auto', borderRadius:14, border:'1px solid #E9EDF4', background:'#fff' }}>
           <table className="tbl">
             <thead><tr>
-              <th>Apt</th><th>Firmă</th><th>Contact</th><th>Tip</th><th>Check-in</th><th>Elib.</th>
-              <th>Zile rămase</th><th>Preț</th><th>Total est.</th><th>Notă</th>
+              <th>Apt</th><th>Firmă</th><th>Status</th><th>Tip</th><th>Check-in</th><th>Check-out</th>
+              <th>Zile rămase</th><th>Preț/noapte</th><th>Total</th><th>Plată</th>
             </tr></thead>
             <tbody>
-              {apts.filter(a=>a.firma&&['activ','elib'].includes(a.status))
-                .filter(a=>(!srch||(a.nr+(a.firma||'')).toLowerCase().includes(srch.toLowerCase()))&&(!fltFirma||a.firma===fltFirma)&&(!fltTip||a.tip_serviciu===fltTip))
-                .sort((a,b)=>(parseInt(a.nr)||999)-(parseInt(b.nr)||999))
-                .map(a=>{
-                  const zR=a.data_elib?diffZile(aziStr,a.data_elib):null
-                  const zF=a.data_checkin?diffZile(a.data_checkin,aziStr):0
-                  const tot=(Number(a.pret)||0)*Math.max(0,zF)
+              {rezervari.filter(r => {
+                  if (srch && !((r.nr_apt + ' ' + (r.firma||'')).toLowerCase().includes(srch.toLowerCase()))) return false
+                  if (fltFirma && r.firma !== fltFirma) return false
+                  if (fltTip) {
+                    if (fltTip === 'rezervat' && r.status !== 'rezervata') return false
+                    if (fltTip !== 'rezervat' && r.tip_serviciu !== fltTip) return false
+                  }
+                  return true
+                })
+                .sort((a,b) => {
+                  // Sortare: rezervate (viitor) primul, apoi active, apoi finalizate (cele mai recente primul)
+                  if (a.status !== b.status) {
+                    if (a.status === 'rezervata') return -1
+                    if (b.status === 'rezervata') return 1
+                  }
+                  return a.data_checkin < b.data_checkin ? 1 : -1
+                })
+                .map(r=>{
+                  const apt = apts.find(a => String(a.nr) === String(r.nr_apt))
+                  const zR = r.data_checkout ? diffZile(aziStr, r.data_checkout) : null
+                  const e = r.data_checkout && r.data_checkout <= aziStr
+                  const v = r.data_checkin > aziStr
                   return (
-                    <tr key={a.nr} style={{ cursor:'pointer' }} onClick={()=>setModalApt(a)}>
-                      <td><strong>{a.nr}</strong>{a.prosop?<span style={{marginLeft:4}}>🛁</span>:null}</td>
+                    <tr key={r.id} style={{ cursor:'pointer', opacity: e ? 0.65 : 1 }}
+                        onClick={()=>setModalApt({...(apt||{nr:r.nr_apt}), _editRezervare: r})}>
+                      <td><strong>{r.nr_apt}</strong>{r.prosop?<span style={{marginLeft:4}}>🛁</span>:null}</td>
                       <td><div style={{display:'flex',alignItems:'center',gap:6}}>
-                        <div style={{width:8,height:8,borderRadius:'50%',background:firmaColor(a.firma),flexShrink:0}}/>
-                        {a.firma}
+                        <div style={{width:8,height:8,borderRadius:'50%',background:firmaColor(r.firma),flexShrink:0}}/>
+                        {r.firma}
                       </div></td>
-                      <td style={{fontSize:11}}>
-                        {a.contact_nume && <div style={{fontWeight:500,color:'#0F2344'}}>{a.contact_nume}</div>}
-                        {a.contact_telefon && <a href={`tel:${a.contact_telefon}`} style={{color:'#1A3A6B',textDecoration:'none',display:'block'}}>📞 {a.contact_telefon}</a>}
-                        {a.contact_email && <a href={`mailto:${a.contact_email}`} style={{color:'#1A3A6B',textDecoration:'none',display:'block'}}>✉️ {a.contact_email}</a>}
-                        {!a.contact_nume && !a.contact_telefon && !a.contact_email && <span style={{color:'#94A3B8'}}>—</span>}
-                      </td>
-                      <td><span className={a.tip_serviciu==='chirie'?'badge bk':'badge bb'} style={{fontSize:10}}>{a.tip_serviciu||'cazare'}</span></td>
-                      <td style={{fontSize:12}}>{a.data_checkin||'—'}</td>
-                      <td style={{fontSize:12}}>{a.data_elib||'—'}</td>
-                      <td>{zR!==null?<span style={{fontWeight:700,color:zR<=3?'#B91C1C':zR<=7?'#B45309':'#1A7A4A'}}>{zR<=0?'Azi':zR===1?'Mâine':`${zR}z`}</span>:<span style={{color:'#94A3B8'}}>—</span>}</td>
-                      <td style={{fontWeight:600}}>{a.pret?`${a.pret} RON`:'—'}</td>
-                      <td style={{fontWeight:700,color:'#1A3A6B'}}>{tot>0?`${tot.toLocaleString()} RON`:'—'}</td>
-
-                      <td style={{fontSize:11,color:'#5B21B6'}}>{a.nota||'—'}</td>
+                      <td><span className="badge" style={{fontSize:10,
+                        background: v ? '#FEF3C7' : e ? '#FEE2E2' : '#DCFCE7',
+                        color: v ? '#92400E' : e ? '#991B1B' : '#166534'}}>
+                        {v ? 'Viitor' : e ? 'Finalizat' : 'Activ'}
+                      </span></td>
+                      <td><span className={r.tip_serviciu==='chirie'?'badge bk':'badge bb'} style={{fontSize:10}}>{r.tip_serviciu||'cazare'}</span></td>
+                      <td style={{fontSize:12}}>{r.data_checkin||'—'}</td>
+                      <td style={{fontSize:12}}>{formatData(r.data_checkout)}</td>
+                      <td>{zR!==null && !e && !isDataDeschis(r.data_checkout) ? <span style={{fontWeight:700,color:zR<=3?'#B91C1C':zR<=7?'#B45309':'#1A7A4A'}}>{zR<=0?'Azi':zR===1?'Mâine':`${zR}z`}</span> : isDataDeschis(r.data_checkout) ? <span style={{color:'#94A3B8',fontSize:11}}>Deschis</span> : <span style={{color:'#94A3B8'}}>—</span>}</td>
+                      <td style={{fontWeight:600}}>{r.pret ? `${r.pret} RON` : '—'}</td>
+                      <td style={{fontWeight:700,color:'#1A3A6B'}}>{r.total && !isDataDeschis(r.data_checkout) ? `${Number(r.total).toLocaleString()} RON` : <span style={{color:'#94A3B8',fontSize:11}}>—</span>}</td>
+                      <td style={{fontSize:11}}><span className="badge" style={{fontSize:10,
+                        background: r.status_plata === 'platit' ? '#DCFCE7' : r.status_plata === 'partial' ? '#FEF3C7' : '#FEE2E2',
+                        color: r.status_plata === 'platit' ? '#166534' : r.status_plata === 'partial' ? '#92400E' : '#991B1B'}}>
+                        {r.status_plata || 'neplatit'}
+                      </span></td>
                     </tr>
                   )
                 })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Tabel istoric rezervari */}
-        <div style={{ fontWeight:600, color:'#0F2344', margin:'20px 0 10px', fontSize:13 }}>
-          📋 Istoric rezervări finalizate
-        </div>
-        <div style={{ overflowX:'auto', borderRadius:14, border:'1px solid #E9EDF4', background:'#fff' }}>
-          <table className="tbl">
-            <thead><tr>
-              <th>Apt</th><th>Firmă</th><th>Contact</th><th>Tip</th>
-              <th>Check-in</th><th>Check-out</th><th>Nopți</th><th>Total</th>
-            </tr></thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={8} style={{textAlign:'center',padding:24,color:'#94A3B8'}}>Se încarcă...</td></tr>
-              ) : rezervari.filter(r =>
-                  (!srch||(r.nr_apt+(r.firma||'')).toLowerCase().includes(srch.toLowerCase()))&&
-                  (!fltFirma||r.firma===fltFirma)&&(!fltTip||r.tip_serviciu===fltTip)
-                ).map(r => (
-                <tr key={r.id}>
-                  <td><strong>{r.nr_apt}</strong></td>
-                  <td><div style={{display:'flex',alignItems:'center',gap:6}}>
-                    <div style={{width:8,height:8,borderRadius:'50%',background:firmaColor(r.firma),flexShrink:0}}/>
-                    {r.firma}
-                  </div></td>
-                  <td style={{fontSize:11}}>
-                    {r.contact_nume&&<div style={{fontWeight:500,color:'#0F2344'}}>{r.contact_nume}</div>}
-                    {r.contact_telefon&&<a href={`tel:${r.contact_telefon}`} style={{color:'#1A3A6B',textDecoration:'none',display:'block'}}>📞 {r.contact_telefon}</a>}
-                    {!r.contact_nume&&!r.contact_telefon&&<span style={{color:'#94A3B8'}}>—</span>}
-                  </td>
-                  <td><span className="badge bk" style={{fontSize:10}}>{r.tip_serviciu||'cazare'}</span></td>
-                  <td style={{fontSize:12}}>{r.data_checkin}</td>
-                  <td style={{fontSize:12}}>{r.data_checkout}</td>
-                  <td style={{textAlign:'center'}}>{r.nr_nopti}</td>
-                  <td style={{fontWeight:700,color:'#1A3A6B'}}>{Number(r.total||0).toLocaleString()} RON</td>
-                </tr>
-              ))}
-              {!loading && rezervari.length === 0 && (
-                <tr><td colSpan={8} style={{textAlign:'center',padding:24,color:'#94A3B8'}}>
-                  Niciun istoric. Se populează automat când eliberezi apartamente.
-                </td></tr>
+              {rezervari.length === 0 && (
+                <tr><td colSpan={10} style={{textAlign:'center', padding:30, color:'#94A3B8'}}>Nicio rezervare</td></tr>
               )}
             </tbody>
           </table>
@@ -1022,6 +1167,7 @@ export default function RezervariPage({
           apt={modalApt} seg={null} apts={apts} curatenii={curatenii}
           onClose={()=>setModalApt(null)}
           onSave={handleSaveApt}
+          onReloadRezervari={reloadRezervari}
           onContract={onContract}/>
       )}
     </div>
