@@ -245,6 +245,9 @@ function AdminPageInner() {
           nr_nopti: nrNoptiIst,
           total: nrNoptiIst * (Number(aptCurent.pret) || 0),
           status_plata: 'neplatit',
+          contact_nume: aptCurent.contact_nume || '',
+          contact_telefon: aptCurent.contact_telefon || '',
+          contact_email: aptCurent.contact_email || '',
           observatii: 'Auto-salvat la eliberare'
         })
       }
@@ -835,18 +838,25 @@ function AdminPageInner() {
                     📋 Foste firme
                   </div>
                   {fosteFirme.map(f => {
-                    const rows = istoric.filter(r => r.firma === f)
-                    const ultimaData = rows.sort((a,b) => new Date(b.data_end||0) - new Date(a.data_end||0))[0]?.data_end
-                    const totalVenit = rows.reduce((s,r) => s + Number(r.total_estimat||0), 0)
+                    const rowsIst = istoric.filter(r => r.firma === f)
+                    const ultimaData = rowsIst.sort((a,b) => new Date(b.data_end||0) - new Date(a.data_end||0))[0]?.data_end
+                    const totalVenit = rowsIst.reduce((s,r) => s + Number(r.total_estimat||0), 0)
+                    // Cauta date contact din apartamentele care au avut aceasta firma
+                    const aptCuFirma = apts.find(a => a.firma === f)
                     return (
-                      <div key={f} className="card" style={{ opacity: .7, borderStyle: 'dashed' }}>
+                      <div key={f} className="card" style={{ opacity:.8, borderStyle:'dashed' }}>
                         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                           <div className="firma-av" style={{ background:'#F1F5F9', color:'#94A3B8' }}>{f.substring(0,2).toUpperCase()}</div>
                           <div style={{ flex:1 }}>
-                            <div style={{ fontWeight:600, color:'#475569' }}>{f}</div>
-                            <div style={{ fontSize:11, color:'#94A3B8' }}>Ultimul sejur: {ultimaData || '—'} · {rows.length} perioade</div>
+                            <div style={{ fontWeight:600, color:'#475569', fontSize:13 }}>{f}</div>
+                            <div style={{ fontSize:11, color:'#94A3B8', display:'flex', gap:8, flexWrap:'wrap', marginTop:2 }}>
+                              <span>Ultimul sejur: {ultimaData || '—'}</span>
+                              <span>{rowsIst.length} perioade</span>
+                              {aptCuFirma?.contact_telefon && <a href={`tel:${aptCuFirma.contact_telefon}`} style={{ color:'#1A3A6B', textDecoration:'none' }}>📞 {aptCuFirma.contact_telefon}</a>}
+                              {aptCuFirma?.contact_email && <a href={`mailto:${aptCuFirma.contact_email}`} style={{ color:'#1A3A6B', textDecoration:'none' }}>✉️ {aptCuFirma.contact_email}</a>}
+                            </div>
                           </div>
-                          <span className="badge bk">{totalVenit.toLocaleString()} RON total</span>
+                          <span className="badge bk">{totalVenit.toLocaleString()} RON</span>
                         </div>
                       </div>
                     )
