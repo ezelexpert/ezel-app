@@ -68,6 +68,22 @@ export default function DashboardTab({ apts, curatenii, onNavigate }) {
   const [alerte, setAlerte] = useState([])
   const [alerteLoading, setAlerteLoading] = useState(true)
   const [expandedSection, setExpandedSection] = useState(null)
+  const [setariNotif, setSetariNotif] = useState({ liber_zile: 3, mentenanta_zile: 7 })
+  const [venitLunaAnt, setVenitLunaAnt] = useState(null)
+
+  // Incarca setarile notificari din DB
+  useEffect(() => {
+    supabase.from('setari').select('valoare').eq('id', 'notificari').single()
+      .then(({ data }) => { if (data?.valoare) setSetariNotif(data.valoare) })
+    // Venit luna anterioara din rezervari
+    const acum = new Date()
+    const primaZiLunaAnt = new Date(acum.getFullYear(), acum.getMonth()-1, 1).toISOString().split('T')[0]
+    const ultimaZiLunaAnt = new Date(acum.getFullYear(), acum.getMonth(), 0).toISOString().split('T')[0]
+    supabase.from('rezervari').select('total').gte('data_checkout', primaZiLunaAnt).lte('data_checkout', ultimaZiLunaAnt)
+      .then(({ data }) => {
+        if (data) setVenitLunaAnt(data.reduce((s,r) => s + Number(r.total||0), 0))
+      })
+  }, [])
 
   const azi = new Date()
   const aziStr = azi.toISOString().split('T')[0]
@@ -106,6 +122,7 @@ export default function DashboardTab({ apts, curatenii, onNavigate }) {
     async function genereazaAlerte() {
       setAlerteLoading(true)
       const alerteNoi = []
+      try {
 
       // 1. Eliberari maine fara curatenie generala
       const elibMaine = apts.filter(a => a.status === 'elib' && a.data_elib === maineStr)
@@ -153,7 +170,7 @@ export default function DashboardTab({ apts, curatenii, onNavigate }) {
         const dataLiber = logMap[apt.nr]
         if (dataLiber) {
           const zileLiber = Math.round((azi - new Date(dataLiber)) / 86400000)
-          if (zileLiber >= 3) {
+          if (zileLiber >= (setariNotif.liber_zile || 3)) {
             alerteNoi.push({
               id: `liber-${apt.nr}`,
               tip: 'info',
@@ -170,7 +187,7 @@ export default function DashboardTab({ apts, curatenii, onNavigate }) {
         .from('mentenanta')
         .select('*')
         .neq('status', 'rezolvat')
-        .lte('created_at', new Date(azi - 7*86400000).toISOString())
+        .lte('created_at', new Date(azi - (setariNotif.mentenanta_zile||7)*86400000).toISOString())
 
       ;(mentNerez || []).forEach(m => {
         const zile = Math.round((azi - new Date(m.created_at)) / 86400000)
@@ -184,6 +201,9 @@ export default function DashboardTab({ apts, curatenii, onNavigate }) {
       })
 
       setAlerte(alerteNoi)
+      } catch(e) {
+        console.error('Alerte error:', e)
+      }
       setAlerteLoading(false)
     }
     genereazaAlerte()
@@ -242,7 +262,20 @@ export default function DashboardTab({ apts, curatenii, onNavigate }) {
           <div style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-1px' }}>
             {venitLunar.toLocaleString('ro-RO')}
           </div>
-          <div style={{ fontSize: 12, opacity: .7, marginTop: 2 }}>RON</div>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:4, flexWrap:'wrap' }}>
+            <span style={{ fontSize:12, opacity:.7 }}>RON</span>
+            {venitLunaAnt !== null && venitLunaAnt > 0 && (() => {
+              const diff = venitLunar - venitLunaAnt
+              const pct = Math.round(Math.abs(diff)/venitLunaAnt*100)
+              return (
+                <span style={{ fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:99,
+                  background:diff>=0?'rgba(26,122,74,.3)':'rgba(185,28,28,.3)',
+                  color:diff>=0?'#86efac':'#fca5a5' }}>
+                  {diff>=0?'↑':'↓'} {pct}% vs luna trecută
+                </span>
+              )
+            })()}
+          </div>
         </div>
 
         {/* Ocupare */}
