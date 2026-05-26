@@ -79,20 +79,19 @@ function ModalRezervare({ apt, seg, apts, curatenii, onClose, onSave, onContract
   async function handleSave() {
     setSaving(true)
     const fields = {
-      firma: form.firma,
-      tip_serviciu: form.tip_serviciu,
-      data_checkin: normalizeData(form.data_checkin),
-      data_elib: normalizeData(form.data_elib),
-      pret: Number(form.pret),
-      pret_utilitati: Number(form.pret_utilitati),
-      utilitati_tip: form.utilitati_tip,
-      plata: form.plata,
-      nota: form.nota,
-      prosop: form.prosop,
-      nr_locuri: Number(form.nr_locuri),
-
-      status: form.firma ? (form.data_elib ? 'elib' : 'activ') : 'liber',
+      firma: form.firma || '',
+      tip_serviciu: form.tip_serviciu || 'cazare',
+      data_checkin: normalizeData(form.data_checkin) || null,
+      data_elib: normalizeData(form.data_elib) || null,
+      pret: Number(form.pret) || 0,
+      pret_utilitati: Number(form.pret_utilitati) || 0,
+      utilitati_tip: form.utilitati_tip || 'fix',
+      plata: form.plata || 'OP',
+      nota: form.nota || '',
+      prosop: form.prosop === true,
+      status: form.firma ? (normalizeData(form.data_elib) ? 'elib' : 'activ') : 'liber',
     }
+    console.log('[Save] fields:', fields)
     await onSave(apt.nr, fields)
     setSaving(false)
     onClose()
@@ -115,9 +114,9 @@ function ModalRezervare({ apt, seg, apts, curatenii, onClose, onSave, onContract
 
   async function handleSetLiber() {
     const fields = {
-      firma:'', nota:'', data_elib:'', pret:0, pret_utilitati:0,
-      tip_serviciu:'cazare', utilitati_tip:'fix', nr_nopti:null, data_checkin:'',
-      status:'liber', status_plata:'neplatit'
+      firma:'', nota:'', data_elib:null, pret:0, pret_utilitati:0,
+      tip_serviciu:'cazare', utilitati_tip:'fix', data_checkin:null,
+      status:'liber'
     }
     await onSave(apt.nr, fields)
     onClose()
