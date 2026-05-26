@@ -66,6 +66,10 @@ async function comprimaImagine(file, maxWidth = 1200, calitate = 0.75) {
 export default function CuratenIePage() {
   const navigate = useNavigate()
   const [tab, setTab] = useState(0)
+  const [setariCuratenie, setSetariCuratenie] = useState({
+    ora_start: '07:30', clockin_inainte: 10, clockin_dupa: 10,
+    pauza_start: '12:00', pauza_end: '12:30'
+  })
   const [azi, setAzi] = useState([])
   const [toate, setToate] = useState([])
   const [finalizate, setFinalizate] = useState([])
@@ -645,7 +649,14 @@ export default function CuratenIePage() {
   // Status pontaj
   const esteIntrată = user?.rol === 'admin' ? true : !!pontajAzi?.ora_intrare
   // Blocheaza daca nu e pontata (afara din intervalul de clock-in)
-  const INTERVAL_CLOCK_IN = { startH: 7, startM: 20, endH: 7, endM: 40 }
+  const parseOra = (s) => { const [h,m] = (s||'07:30').split(':').map(Number); return {h,m} }
+  const oraProg = parseOra(setariCuratenie.ora_start)
+  const inainte = setariCuratenie.clockin_inainte || 10
+  const dupa = setariCuratenie.clockin_dupa || 10
+  const INTERVAL_CLOCK_IN = {
+    startH: oraProg.h, startM: Math.max(0, oraProg.m - inainte),
+    endH: oraProg.h, endM: oraProg.m + dupa
+  }
   const areVoieSaVadaCuratenii = user?.rol === 'admin' || esteIntrată
   const esteIesita = !!pontajAzi?.ora_iesire
 
