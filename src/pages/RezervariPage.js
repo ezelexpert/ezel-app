@@ -91,7 +91,6 @@ function ModalRezervare({ apt, seg, apts, curatenii, onClose, onSave, onContract
       prosop: form.prosop === true,
       status: form.firma ? (normalizeData(form.data_elib) ? 'elib' : 'activ') : 'liber',
     }
-    console.log('[Save] fields:', fields)
     await onSave(apt.nr, fields)
     setSaving(false)
     onClose()
