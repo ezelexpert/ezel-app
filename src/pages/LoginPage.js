@@ -45,7 +45,7 @@ export default function LoginPage() {
       const roluri = tip === 'admin' ? ['admin'] : ['curatenie', 'lenjerii']
       const filtrati = useri.filter(u => roluri.includes(u.rol))
       setUtilizatori(filtrati)
-      if (filtrati.length === 1) setSelectedUser(filtrati[0].id)
+      if (filtrati.length === 1) setSelectedUser(String(filtrati[0].id))
       setLoadingUseri(false)
     })
   }, [tip])
@@ -56,7 +56,7 @@ export default function LoginPage() {
     setLoading(true)
     setEroare('')
 
-    const utilizator = utilizatori.find(u => u.id === selectedUser)
+    const utilizator = utilizatori.find(u => String(u.id) === String(selectedUser))
     if (!utilizator) {
       setEroare('Selectează un utilizator.')
       setLoading(false)
