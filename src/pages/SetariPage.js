@@ -226,8 +226,8 @@ export default function SetariPage() {
     setUserError('')
 
     if (userModal === 'add') {
-      if (!userForm.parola.trim() || userForm.parola.length < 8) {
-        setUserError('Parola trebuie să aibă minim 8 caractere!')
+      if (!userForm.parola.trim()) {
+        setUserError('Introdu o parolă!')
         return
       }
       const result = await adaugaUtilizator(userForm.nume.trim(), userForm.parola.trim(), userForm.rol)
@@ -243,8 +243,8 @@ export default function SetariPage() {
 
       // Dacă s-a schimbat parola, folosește RPC
       if (userForm.parola && userForm.parola !== '••••••') {
-        if (userForm.parola.length < 8) {
-          setUserError('Parola trebuie să aibă minim 8 caractere!')
+        if (!userForm.parola.trim()) {
+          setUserError('Introdu o parolă!')
           return
         }
         const result = await reseteazaParola(userModal, userForm.parola.trim())
@@ -344,9 +344,8 @@ export default function SetariPage() {
                     <span>Parolă:</span>
                     <span style={{ fontFamily:'monospace', letterSpacing:2, color:'#94A3B8' }}>••••••••</span>
                     <button onClick={() => {
-                      const noua = window.prompt('Parolă nouă (minim 8 caractere):')
+                      const noua = window.prompt('Parolă nouă:')
                       if (!noua) return
-                      if (noua.length < 8) { alert('Parola trebuie să aibă minim 8 caractere!'); return }
                       reseteazaParola(u.id, noua).then(r => {
                         if (r.ok) alert('✓ Parolă schimbată!')
                         else alert('Eroare: ' + r.error)
