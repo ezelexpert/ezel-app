@@ -1,218 +1,313 @@
 import React, { useState, useEffect } from 'react'
-import { getMentenanta, updateStatusMentenanta } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 
-const STATUS_MAP = {
-  nou: { label: '🔴 Nou', bg: '#FDECEA', color: '#c0392b' },
-  in_lucru: { label: '🟡 În lucru', bg: '#FFF2CC', color: '#7B5E00' },
-  rezolvat: { label: '✅ Rezolvat', bg: '#E2EFDA', color: '#375623' },
-}
+const LUNI_NUME = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie']
+const LEI_PER_APT = 10
+const ANGAJATE = ['Olar Svitlana', 'Farcas Adela Georgiana']
 
-export default function MentenantaTab() {
-  const [rapoarte, setRapoarte] = useState([])
+export default function SalariiTab() {
+  const [curatenii, setCuratenii] = useState([])
+  const [pontaj, setPontaj] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filtruApt, setFiltruApt] = useState('')
-  const [fotModal, setFotModal] = useState(null)
-  const [tabActiv, setTabActiv] = useState('active') // 'active' | 'finalizate'
+  const now = new Date()
+  const [an, setAn] = useState(now.getFullYear())
+  const [luna, setLuna] = useState(now.getMonth())
+  const [salariuBaza, setSalariuBaza] = useState({ 'Olar Svitlana': 3000, 'Farcas Adela Georgiana': 3000 })
+  const [editSalar, setEditSalar] = useState(false)
+  const [costExtra, setCostExtra] = useState({ utilitati: 0, consumabile: 0 })
+  const [editCost, setEditCost] = useState(false)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [an, luna])
 
   async function load() {
     setLoading(true)
     try {
-      const data = await getMentenanta()
-      setRapoarte(data)
+      const lunaStr = `${an}-${String(luna+1).padStart(2,'0')}`
+      const [{ data: cur }, { data: pont }] = await Promise.all([
+        supabase.from('curatenie').select('*')
+          .eq('status_curatenie', 'finalizata')
+          .gte('data_programata', `${lunaStr}-01`)
+          .lte('data_programata', `${lunaStr}-31`)
+          .or('deja_curat.is.null,deja_curat.eq.false'),
+        supabase.from('pontaj').select('*')
+          .gte('data', `${lunaStr}-01`)
+          .lte('data', `${lunaStr}-31`)
+      ])
+      setCuratenii(cur || [])
+      setPontaj(pont || [])
+      try {
+        const { data: cfg } = await supabase.from('setari').select('valoare').eq('id', `cost_op:${lunaStr}`).single()
+        if (cfg && cfg.valoare) {
+          const v = cfg.valoare
+          setCostExtra({ utilitati: Number(v.utilitati)||0, consumabile: Number(v.consumabile)||0 })
+          if (v.salarii) setSalariuBaza(v.salarii)
+        } else {
+          setCostExtra({ utilitati: 0, consumabile: 0 })
+        }
+      } catch { setCostExtra({ utilitati: 0, consumabile: 0 }) }
     } catch(e) { console.error(e) }
     setLoading(false)
   }
 
-  async function schimbaStatus(id, status) {
-    await updateStatusMentenanta(id, status)
-    setRapoarte(prev => prev.map(r => r.id === id ? {...r, status} : r))
+  // Grupeaza curateniile pe zile
+  const zileUnice = [...new Set(curatenii.map(c => c.data_programata))].sort()
+
+  // Calcul bonus per angajata per zi
+  // Regula: daca ambele prezente -> impart egal; daca doar una -> ia tot
+  const bonusPerAngajata = { 'Olar Svitlana': 0, 'Farcas Adela Georgiana': 0 }
+  const zileLucrate = { 'Olar Svitlana': new Set(), 'Farcas Adela Georgiana': new Set() }
+  const curateniiPerAngajata = { 'Olar Svitlana': 0, 'Farcas Adela Georgiana': 0 }
+
+  zileUnice.forEach(data => {
+    // Curateniile din ziua asta
+    const curAzi = curatenii.filter(c => c.data_programata === data)
+    const totalBonus = curAzi.length * LEI_PER_APT
+
+    // Cine a fost prezenta in ziua asta
+    const prezente = ANGAJATE.filter(a =>
+      pontaj.some(p => p.data === data && p.nume === a && p.ora_intrare)
+    )
+
+    if (prezente.length === 0) {
+      // Nimeni pontata - impartim egal (curatenii facute fara pontaj)
+      ANGAJATE.forEach(a => {
+        bonusPerAngajata[a] += totalBonus / 2
+      })
+    } else if (prezente.length === 1) {
+      // Doar una prezenta - ia tot bonusul
+      bonusPerAngajata[prezente[0]] += totalBonus
+      zileLucrate[prezente[0]].add(data)
+    } else {
+      // Ambele prezente - impart egal
+      prezente.forEach(a => {
+        bonusPerAngajata[a] += totalBonus / 2
+        zileLucrate[a].add(data)
+      })
+    }
+
+    // Numara curateniile atribuite individual
+    curAzi.forEach(c => {
+      if (c.facut_de && ANGAJATE.includes(c.facut_de)) {
+        curateniiPerAngajata[c.facut_de]++
+      }
+    })
+  })
+
+  // Zile lucrate din pontaj
+  ANGAJATE.forEach(a => {
+    const zilePontaj = pontaj.filter(p => p.nume === a && p.ora_intrare)
+    zilePontaj.forEach(p => zileLucrate[a].add(p.data))
+  })
+
+  const stats = ANGAJATE.map(nume => ({
+    nume,
+    curatenii: curateniiPerAngajata[nume],
+    zileLucrate: zileLucrate[nume].size,
+    bonus: Math.round(bonusPerAngajata[nume]),
+    baza: salariuBaza[nume] || 3000,
+    total: Math.round((salariuBaza[nume] || 3000) + bonusPerAngajata[nume])
+  }))
+
+  const totalCuratenii = curatenii.length
+  const totalBonus = stats.reduce((s, a) => s + a.bonus, 0)
+  const totalSalariiBrute = stats.reduce((s, a) => s + a.baza, 0)
+  const costTotalLuna = totalSalariiBrute + totalBonus + Number(costExtra.utilitati||0) + Number(costExtra.consumabile||0)
+  const costPerCuratenie = totalCuratenii > 0 ? costTotalLuna / totalCuratenii : 0
+
+  // Pontaj detaliat pe zile
+  const pontajAzi = pontaj.filter(p => {
+    const azi = new Date().toISOString().split('T')[0]
+    return p.data === azi
+  })
+
+  function formatOra(iso) {
+    if (!iso) return '—'
+    return new Date(iso).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })
   }
 
-  // Filtrare
-  const filtrate = rapoarte.filter(r =>
-    (!filtruApt || r.nr_apt.includes(filtruApt))
-  )
-
-  const active = filtrate.filter(r => r.status === 'nou' || r.status === 'in_lucru')
-    .sort((a, b) => {
-      // Noi primii, apoi in lucru
-      const ord = { nou: 0, in_lucru: 1 }
-      if (ord[a.status] !== ord[b.status]) return ord[a.status] - ord[b.status]
-      return new Date(b.created_at) - new Date(a.created_at)
-    })
-
-  const finalizate = filtrate.filter(r => r.status === 'rezolvat')
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-
-  const nrNoi = rapoarte.filter(r => r.status === 'nou').length
-  const nrInLucru = rapoarte.filter(r => r.status === 'in_lucru').length
-  const nrRezolvat = rapoarte.filter(r => r.status === 'rezolvat').length
-
-  if (loading) return <div style={{ textAlign:'center', padding:40, color:'#aaa' }}>Se încarcă...</div>
-
-  function renderRaport(r) {
-    const st = STATUS_MAP[r.status] || STATUS_MAP.nou
-    const data = new Date(r.created_at).toLocaleString('ro-RO', {
-      day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
-    })
-
-    return (
-      <div key={r.id} style={{ background:'#fff', border:'1px solid #e8e8e8', borderLeft:`4px solid ${st.color}`, borderRadius:10, padding:'12px 14px', marginBottom:8 }}>
-        {/* Header */}
-        <div style={{ display:'flex', alignItems:'flex-start', gap:10, marginBottom:10 }}>
-          <div style={{ width:42, height:42, borderRadius:10, background:'#EBF1FB', color:'#1F3864', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-            <div style={{ fontSize:11, fontWeight:700 }}>AP</div>
-            <div style={{ fontSize:12, fontWeight:700 }}>{r.nr_apt}</div>
-          </div>
-          <div style={{ flex:1 }}>
-            <div style={{ fontSize:13, fontWeight:600, color:'#1F3864' }}>AP {r.nr_apt} — {r.firma||'—'}</div>
-            <div style={{ fontSize:11, color:'#aaa', marginTop:2 }}>{data}</div>
-          </div>
-          <span style={{ fontSize:11, padding:'3px 8px', borderRadius:12, fontWeight:600, background:st.bg, color:st.color, whiteSpace:'nowrap' }}>
-            {st.label}
-          </span>
-        </div>
-
-        {/* Descriere */}
-        <div style={{ fontSize:13, color:'#333', background:'#f8f9fa', borderRadius:8, padding:'8px 10px', marginBottom:10, lineHeight:1.5 }}>
-          {r.descriere}
-        </div>
-
-        {/* Fotografie */}
-        {r.foto_url && (
-          <div style={{ marginBottom:10 }}>
-            <img src={r.foto_url} alt="mentenanta"
-              onClick={() => setFotModal(r.foto_url)}
-              style={{ width:'100%', maxHeight:180, objectFit:'cover', borderRadius:8, cursor:'pointer', border:'1px solid #eee' }} />
-            <div style={{ fontSize:10, color:'#aaa', marginTop:3, textAlign:'center' }}>Click pentru a mări</div>
-          </div>
-        )}
-
-        {/* Actiuni */}
-        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-          {r.status === 'nou' && (
-            <button onClick={() => schimbaStatus(r.id, 'in_lucru')}
-              style={{ padding:'6px 12px', borderRadius:7, border:'1.5px solid #F0C040', background:'#FFF2CC', color:'#7B5E00', cursor:'pointer', fontSize:12, fontWeight:600 }}>
-              🟡 Marchează în lucru
-            </button>
-          )}
-          {r.status === 'in_lucru' && (
-            <>
-              <button onClick={() => schimbaStatus(r.id, 'nou')}
-                style={{ padding:'6px 12px', borderRadius:7, border:'1px solid #ddd', background:'#fff', color:'#888', cursor:'pointer', fontSize:12 }}>
-                ← Înapoi la nou
-              </button>
-              <button onClick={() => schimbaStatus(r.id, 'rezolvat')}
-                style={{ padding:'6px 12px', borderRadius:7, border:'1.5px solid #C0DD97', background:'#E2EFDA', color:'#375623', cursor:'pointer', fontSize:12, fontWeight:600 }}>
-                ✅ Marchează rezolvat
-              </button>
-            </>
-          )}
-          {r.status === 'rezolvat' && (
-            <button onClick={() => schimbaStatus(r.id, 'in_lucru')}
-              style={{ padding:'6px 12px', borderRadius:7, border:'1px solid #ddd', background:'#fff', color:'#888', cursor:'pointer', fontSize:12 }}>
-              ↩ Redeschide
-            </button>
-          )}
-        </div>
-      </div>
-    )
+  async function saveCost() {
+    const lunaStr = `${an}-${String(luna+1).padStart(2,'0')}`
+    try {
+      await supabase.from('setari').upsert({ id: `cost_op:${lunaStr}`, valoare: { salarii: salariuBaza, utilitati: Number(costExtra.utilitati)||0, consumabile: Number(costExtra.consumabile)||0 }, updated_at: new Date().toISOString() })
+    } catch(e) { console.error(e) }
+    setEditCost(false)
+    setEditSalar(false)
   }
 
   return (
     <div>
-      {/* Stats */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:14 }}>
-        <div style={{ background:'#FDECEA', borderRadius:10, padding:'10px 12px', border:'1px solid #F5A0A0', textAlign:'center' }}>
-          <div style={{ fontSize:22, fontWeight:700, color:'#c0392b' }}>{nrNoi}</div>
-          <div style={{ fontSize:11, color:'#c0392b' }}>🔴 Noi</div>
+      {/* Prezenta azi */}
+      <div style={{ background:'#fff', border:'1px solid #e8e8e8', borderRadius:10, padding:'12px 14px', marginBottom:14 }}>
+        <div style={{ fontSize:12, fontWeight:600, color:'#555', marginBottom:8 }}>👥 Prezență azi</div>
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+          {ANGAJATE.map(a => {
+            const p = pontajAzi.find(p => p.nume === a)
+            const ePresenta = p && p.ora_intrare && !p.ora_iesire
+            const aTerminat = p && p.ora_iesire
+            return (
+              <div key={a} style={{ flex:1, minWidth:150, padding:'10px 12px', borderRadius:9, border:`1.5px solid ${ePresenta?'#C0DD97':aTerminat?'#90B8E8':'#e0e0e0'}`, background:ePresenta?'#E2EFDA':aTerminat?'#EBF1FB':'#f8f9fa' }}>
+                <div style={{ fontSize:12, fontWeight:700, color:'#1F3864', marginBottom:4 }}>{a.split(' ')[0]}</div>
+                {!p && <div style={{ fontSize:11, color:'#aaa' }}>⬜ Neprezentă</div>}
+                {p && p.ora_intrare && !p.ora_iesire && <div style={{ fontSize:11, color:'#375623' }}>🟢 Prezentă de la {formatOra(p.ora_intrare)}</div>}
+                {p && p.ora_iesire && <div style={{ fontSize:11, color:'#1F3864' }}>✅ {formatOra(p.ora_intrare)} — {formatOra(p.ora_iesire)}</div>}
+              </div>
+            )
+          })}
         </div>
-        <div style={{ background:'#FFF2CC', borderRadius:10, padding:'10px 12px', border:'1px solid #F0C040', textAlign:'center' }}>
-          <div style={{ fontSize:22, fontWeight:700, color:'#7B5E00' }}>{nrInLucru}</div>
-          <div style={{ fontSize:11, color:'#7B5E00' }}>🟡 În lucru</div>
+      </div>
+
+      {/* Selector luna */}
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14, flexWrap:'wrap' }}>
+        <button className="btn" onClick={() => setAn(a=>a-1)}>◀</button>
+        <div style={{ fontSize:15, fontWeight:700, color:'#1F3864', minWidth:60, textAlign:'center' }}>{an}</div>
+        <button className="btn" onClick={() => setAn(a=>a+1)}>▶</button>
+        <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+          {LUNI_NUME.map((l,i) => (
+            <button key={i} onClick={() => setLuna(i)}
+              style={{ padding:'5px 10px', borderRadius:8, border:'1px solid #ddd', fontSize:12, cursor:'pointer',
+                background: luna===i?'#1F3864':'#fff', color: luna===i?'#fff':'#555', fontWeight: luna===i?600:400 }}>
+              {l.substring(0,3)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Stats totale */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))', gap:8, marginBottom:16 }}>
+        <div style={{ background:'#EBF1FB', borderRadius:10, padding:'10px 12px', border:'1px solid #90B8E8', textAlign:'center' }}>
+          <div style={{ fontSize:22, fontWeight:700, color:'#1F3864' }}>{totalCuratenii}</div>
+          <div style={{ fontSize:11, color:'#1F3864' }}>Curățenii totale</div>
         </div>
         <div style={{ background:'#E2EFDA', borderRadius:10, padding:'10px 12px', border:'1px solid #C0DD97', textAlign:'center' }}>
-          <div style={{ fontSize:22, fontWeight:700, color:'#375623' }}>{nrRezolvat}</div>
-          <div style={{ fontSize:11, color:'#375623' }}>✅ Rezolvate</div>
+          <div style={{ fontSize:22, fontWeight:700, color:'#375623' }}>{totalCuratenii * LEI_PER_APT} RON</div>
+          <div style={{ fontSize:11, color:'#375623' }}>Fond bonus total</div>
+        </div>
+        <div style={{ background:'#EDE7F6', borderRadius:10, padding:'10px 12px', border:'1px solid #C5B3F0', textAlign:'center' }}>
+          <div style={{ fontSize:22, fontWeight:700, color:'#4527A0' }}>{zileUnice.length}</div>
+          <div style={{ fontSize:11, color:'#4527A0' }}>Zile cu curățenie</div>
         </div>
       </div>
 
-      {/* Filtrare apt */}
-      <div style={{ display:'flex', gap:6, marginBottom:12, alignItems:'center' }}>
-        <input placeholder="Caută apt..." value={filtruApt} onChange={e => setFiltruApt(e.target.value)}
-          style={{ padding:'5px 8px', borderRadius:7, border:'1px solid #ddd', fontSize:13, height:32, width:130 }} />
-        <button onClick={load}
-          style={{ padding:'5px 10px', borderRadius:7, border:'1px solid #ddd', background:'#fff', cursor:'pointer', fontSize:12, height:32 }}>
-          ↻ Refresh
-        </button>
-      </div>
-
-      {/* Tabs Active / Finalizate */}
-      <div style={{ display:'flex', background:'#fff', borderBottom:'1.5px solid #e0e0e0', marginBottom:12 }}>
-        <div onClick={() => setTabActiv('active')}
-          style={{ padding:'9px 16px', fontSize:13, cursor:'pointer', fontWeight:500,
-            color: tabActiv==='active' ? '#c0392b' : '#888',
-            borderBottom: tabActiv==='active' ? '2.5px solid #c0392b' : '2.5px solid transparent' }}>
-          🔴 Active ({active.length})
-        </div>
-        <div onClick={() => setTabActiv('finalizate')}
-          style={{ padding:'9px 16px', fontSize:13, cursor:'pointer', fontWeight:500,
-            color: tabActiv==='finalizate' ? '#375623' : '#888',
-            borderBottom: tabActiv==='finalizate' ? '2.5px solid #375623' : '2.5px solid transparent' }}>
-          ✅ Finalizate ({finalizate.length})
-        </div>
-      </div>
-
-      {/* Lista */}
-      {tabActiv === 'active' && (
-        active.length === 0 ? (
-          <div style={{ textAlign:'center', padding:'40px 20px', color:'#bbb' }}>
-            <div style={{ fontSize:40, marginBottom:10 }}>✅</div>
-            <div>Nicio problemă activă!</div>
-          </div>
-        ) : (
-          <>
-            {/* Grupat: Noi */}
-            {active.filter(r => r.status === 'nou').length > 0 && (
-              <>
-                <div style={{ fontSize:11, fontWeight:600, color:'#c0392b', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:8 }}>
-                  🔴 Noi — {active.filter(r=>r.status==='nou').length}
+      {/* Carduri angajate */}
+      {loading ? <div style={{ textAlign:'center', padding:30, color:'#aaa' }}>Se încarcă...</div> : (
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))', gap:12, marginBottom:16 }}>
+          {stats.map(s => (
+            <div key={s.nume} style={{ background:'#fff', border:'1.5px solid #e0e0e0', borderRadius:12, padding:'16px', boxShadow:'0 2px 8px rgba(0,0,0,.06)' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
+                <div style={{ width:44, height:44, borderRadius:12, background:'#375623', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700, flexShrink:0 }}>
+                  {s.nume.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase()}
                 </div>
-                {active.filter(r => r.status === 'nou').map(renderRaport)}
-              </>
-            )}
-            {/* Grupat: In lucru */}
-            {active.filter(r => r.status === 'in_lucru').length > 0 && (
-              <>
-                <div style={{ fontSize:11, fontWeight:600, color:'#7B5E00', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:8, marginTop:12 }}>
-                  🟡 În lucru — {active.filter(r=>r.status==='in_lucru').length}
+                <div>
+                  <div style={{ fontSize:14, fontWeight:700, color:'#1F3864' }}>{s.nume}</div>
+                  <div style={{ fontSize:11, color:'#888' }}>🧹 {LUNI_NUME[luna]} {an} · {s.zileLucrate} zile lucrate</div>
                 </div>
-                {active.filter(r => r.status === 'in_lucru').map(renderRaport)}
-              </>
-            )}
-          </>
-        )
-      )}
+              </div>
 
-      {tabActiv === 'finalizate' && (
-        finalizate.length === 0 ? (
-          <div style={{ textAlign:'center', padding:'40px 20px', color:'#bbb' }}>
-            <div style={{ fontSize:40, marginBottom:10 }}>📋</div>
-            <div>Nicio problemă rezolvată încă.</div>
-          </div>
-        ) : finalizate.map(renderRaport)
-      )}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:12 }}>
+                <div style={{ background:'#f8f9fa', borderRadius:8, padding:'8px 10px', textAlign:'center' }}>
+                  <div style={{ fontSize:20, fontWeight:700, color:'#375623' }}>{s.curatenii}</div>
+                  <div style={{ fontSize:10, color:'#888' }}>curățenii proprii</div>
+                </div>
+                <div style={{ background:'#f8f9fa', borderRadius:8, padding:'8px 10px', textAlign:'center' }}>
+                  <div style={{ fontSize:20, fontWeight:700, color:'#7B5E00' }}>{s.bonus} RON</div>
+                  <div style={{ fontSize:10, color:'#888' }}>bonus calculat</div>
+                </div>
+              </div>
 
-      {/* Modal foto marita */}
-      {fotModal && (
-        <div onClick={() => setFotModal(null)}
-          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', zIndex:300, display:'flex', alignItems:'center', justifyContent:'center', padding:16, cursor:'pointer' }}>
-          <img src={fotModal} alt="mare" style={{ maxWidth:'100%', maxHeight:'90vh', borderRadius:10, objectFit:'contain' }} />
-          <div style={{ position:'absolute', top:16, right:16, color:'#fff', fontSize:24 }}>✕</div>
+              <div style={{ fontSize:11, color:'#888', background:'#f8f9fa', borderRadius:8, padding:'8px 10px', marginBottom:12 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
+                  <span>Salariu bază</span><span style={{ fontWeight:600 }}>{s.baza.toLocaleString()} RON</span>
+                </div>
+                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
+                  <span>Bonus ({LEI_PER_APT} RON/apt × prezență)</span>
+                  <span style={{ fontWeight:600, color:'#375623' }}>+{s.bonus} RON</span>
+                </div>
+                <div style={{ height:1, background:'#e0e0e0', margin:'6px 0' }}></div>
+                <div style={{ display:'flex', justifyContent:'space-between' }}>
+                  <span style={{ fontWeight:700 }}>TOTAL DE PLĂTIT</span>
+                  <span style={{ fontWeight:700, color:'#1F3864', fontSize:13 }}>{s.total.toLocaleString()} RON</span>
+                </div>
+              </div>
+
+              <div style={{ background:'#1F3864', color:'#fff', borderRadius:8, padding:'10px 12px', textAlign:'center' }}>
+                <div style={{ fontSize:11, opacity:.7, marginBottom:2 }}>Total salariu {LUNI_NUME[luna]}</div>
+                <div style={{ fontSize:22, fontWeight:700 }}>{s.total.toLocaleString()} RON</div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
+
+      {/* Cost per curatenie */}
+      <div style={{ background:'#fff', border:'1.5px solid #1F3864', borderRadius:10, padding:'14px', marginBottom:14 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+          <div style={{ fontSize:13, fontWeight:700, color:'#1F3864' }}>🧮 Cost per curățenie — {LUNI_NUME[luna]} {an}</div>
+          <button onClick={() => editCost ? saveCost() : setEditCost(true)}
+            style={{ fontSize:11, padding:'4px 10px', borderRadius:6, border:'1px solid #ddd', background: editCost?'#1F3864':'#fff', color: editCost?'#fff':'#555', cursor:'pointer' }}>
+            {editCost ? '💾 Salvează' : 'Modifică'}
+          </button>
+        </div>
+
+        {editCost && (
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
+            <div>
+              <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block' }}>Utilități spălătorie (RON)</label>
+              <input type="number" value={costExtra.utilitati}
+                onChange={e => setCostExtra(p => ({...p, utilitati: Number(e.target.value)}))}
+                style={{ width:'100%', padding:'6px 8px', fontSize:13, border:'1.5px solid #ddd', borderRadius:7, outline:'none', fontWeight:600 }} />
+            </div>
+            <div>
+              <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block' }}>Consumabile (RON)</label>
+              <input type="number" value={costExtra.consumabile}
+                onChange={e => setCostExtra(p => ({...p, consumabile: Number(e.target.value)}))}
+                style={{ width:'100%', padding:'6px 8px', fontSize:13, border:'1.5px solid #ddd', borderRadius:7, outline:'none', fontWeight:600 }} />
+            </div>
+          </div>
+        )}
+
+        <div style={{ fontSize:12, color:'#555', background:'#f8f9fa', borderRadius:8, padding:'10px 12px', marginBottom:12 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}><span>Salarii brute</span><span style={{ fontWeight:600 }}>{totalSalariiBrute.toLocaleString()} RON</span></div>
+          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}><span>Bonusuri</span><span style={{ fontWeight:600 }}>{totalBonus.toLocaleString()} RON</span></div>
+          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}><span>Utilități spălătorie</span><span style={{ fontWeight:600 }}>{Number(costExtra.utilitati||0).toLocaleString()} RON</span></div>
+          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}><span>Consumabile</span><span style={{ fontWeight:600 }}>{Number(costExtra.consumabile||0).toLocaleString()} RON</span></div>
+          <div style={{ height:1, background:'#e0e0e0', margin:'6px 0' }}></div>
+          <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ fontWeight:700 }}>Total cheltuieli</span><span style={{ fontWeight:700, color:'#1F3864' }}>{costTotalLuna.toLocaleString()} RON</span></div>
+          <div style={{ display:'flex', justifyContent:'space-between', marginTop:3, color:'#888', fontSize:11 }}><span>împărțit la {totalCuratenii} curățenii din lună</span><span></span></div>
+        </div>
+
+        <div style={{ background:'#1F3864', color:'#fff', borderRadius:8, padding:'12px', textAlign:'center' }}>
+          <div style={{ fontSize:11, opacity:.7, marginBottom:2 }}>Cost mediu per curățenie</div>
+          <div style={{ fontSize:26, fontWeight:700 }}>{costPerCuratenie.toFixed(2)} RON</div>
+        </div>
+      </div>
+
+      {/* Editare salariu baza */}
+      <div style={{ background:'#fff', border:'1px solid #e8e8e8', borderRadius:10, padding:'12px 14px' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: editSalar?10:0 }}>
+          <div style={{ fontSize:12, fontWeight:600, color:'#555' }}>⚙️ Salariu de bază</div>
+          <button onClick={() => editSalar ? saveCost() : setEditSalar(true)}
+            style={{ fontSize:11, padding:'4px 10px', borderRadius:6, border:'1px solid #ddd', background: editSalar?'#1F3864':'#fff', cursor:'pointer', color: editSalar?'#fff':'#555' }}>
+            {editSalar ? '💾 Salvează' : 'Modifică'}
+          </button>
+        </div>
+        {editSalar && (
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            {ANGAJATE.map(nume => (
+              <div key={nume}>
+                <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block' }}>{nume.split(' ')[0]}</label>
+                <input type="number" value={salariuBaza[nume]||3000}
+                  onChange={e => setSalariuBaza(p => ({...p, [nume]: Number(e.target.value)}))}
+                  style={{ width:'100%', padding:'6px 8px', fontSize:13, border:'1.5px solid #ddd', borderRadius:7, outline:'none', fontWeight:600 }} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Nota logica bonus */}
+      <div style={{ marginTop:10, background:'#EBF1FB', border:'1px solid #90B8E8', borderRadius:8, padding:'8px 12px', fontSize:11, color:'#1F3864' }}>
+        💡 <strong>Logica bonus:</strong> Dacă ambele sunt prezente → bonusul zilei se împarte egal. Dacă doar una e prezentă → ia tot bonusul zilei respective. Prezența se determină din pontajul Clock In/Out.
+      </div>
     </div>
   )
 }
