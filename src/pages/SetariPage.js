@@ -207,9 +207,9 @@ export default function SetariPage() {
     if (section === 'angajati') {
       for (const a of setari.angajati.lista || []) {
         const { data: existing } = await supabase.from('utilizatori_public')
-          .select('id, activ').eq('nume', a.nume).maybeSingle()
+          .select('id, nume, rol, activ').eq('nume', a.nume).maybeSingle()
         if (existing && existing.activ !== a.activ) {
-          await supabase.from('utilizatori').update({ activ: a.activ }).eq('id', existing.id)
+          await supabase.rpc('admin_update_user', { p_user_id: existing.id, p_nume: existing.nume, p_rol: existing.rol, p_activ: a.activ })
         }
       }
     }
@@ -236,10 +236,14 @@ export default function SetariPage() {
         return
       }
     } else {
-      // Update nume / rol / activ (fără parolă)
-      await supabase.from('utilizatori')
-        .update({ nume: userForm.nume.trim(), rol: userForm.rol, activ: userForm.activ })
-        .eq('id', userModal)
+      // Update nume / rol / activ (prin functie - tabela e blocata pentru scriere directa)
+      const { error: updErr } = await supabase.rpc('admin_update_user', {
+        p_user_id: userModal, p_nume: userForm.nume.trim(), p_rol: userForm.rol, p_activ: userForm.activ
+      })
+      if (updErr) {
+        setUserError((updErr.message || '').match(/duplicate|unique/i) ? 'Există deja un utilizator cu acest nume.' : 'Eroare la salvare.')
+        return
+      }
 
       // Dacă s-a schimbat parola, folosește RPC
       if (userForm.parola && userForm.parola !== '••••••') {
@@ -258,7 +262,7 @@ export default function SetariPage() {
   }
 
   async function toggleActiv(u) {
-    await supabase.from('utilizatori').update({ activ: !u.activ }).eq('id', u.id)
+    await supabase.rpc('admin_update_user', { p_user_id: u.id, p_nume: u.nume, p_rol: u.rol, p_activ: !u.activ })
     setUtilizatori(prev => prev.map(x => x.id === u.id ? { ...x, activ: !x.activ } : x))
   }
 
@@ -268,7 +272,7 @@ export default function SetariPage() {
 
   async function confirmDeleteUser() {
     if (!confirmDelete) return
-    await supabase.from('utilizatori').delete().eq('id', confirmDelete.id)
+    await supabase.rpc('admin_delete_user', { p_user_id: confirmDelete.id })
     setUtilizatori(prev => prev.filter(x => x.id !== confirmDelete.id))
     setConfirmDelete(null)
   }
