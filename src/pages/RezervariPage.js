@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { getNume } from '../lib/auth'
 
 // ── Utils ─────────────────────────────────────────────────────
 function dateStr(d) {
@@ -69,6 +70,7 @@ function ModalRezervare({ apt, seg, apts, curatenii, onClose, onSave, onContract
     nr_locuri: editRez?.nr_locuri || apt?.nr_locuri || 2,
     status_plata: editRez?.status_plata || 'neplatit',
     observatii: editRez?.observatii || '',
+    sursa: editRez?.sursa || 'telefon',
   })
   const [saving, setSaving] = useState(false)
   const [eroare, setEroare] = useState('')
@@ -156,6 +158,8 @@ function ModalRezervare({ apt, seg, apts, curatenii, onClose, onSave, onContract
       nr_locuri: Number(form.nr_locuri) || 2,
       status_plata: form.status_plata || 'neplatit',
       observatii: form.observatii || '',
+      sursa: form.sursa || 'telefon',
+      creat_de: editRez?.creat_de || getNume() || '',
       nr_nopti: nrNoptiCalc,
       total: nrNoptiCalc * pret,
       status
@@ -345,6 +349,18 @@ function ModalRezervare({ apt, seg, apts, curatenii, onClose, onSave, onContract
               </div>
             </div>
 
+            <div className="fg">
+              <label className="fl">Sursă rezervare</label>
+              <select className="fi" value={form.sursa} onChange={e=>setForm(p=>({...p,sursa:e.target.value}))}>
+                <option value="telefon">Telefon</option>
+                <option value="airbnb">Airbnb</option>
+                <option value="booking">Booking</option>
+                <option value="website">Website</option>
+                <option value="whatsapp">WhatsApp</option>
+                <option value="manual">Manual</option>
+              </select>
+            </div>
+
             {form.tip_serviciu === 'chirie' && (
               <div className="r2">
                 <div className="fg">
@@ -387,6 +403,13 @@ function ModalRezervare({ apt, seg, apts, curatenii, onClose, onSave, onContract
               <div style={{ padding:'10px 12px', background:'#FEE2E2', border:'1px solid #FECACA',
                 borderRadius:8, color:'#B91C1C', fontSize:13, marginBottom:8 }}>
                 ⚠️ {eroare}
+              </div>
+            )}
+
+            {/* Creat de */}
+            {editRez && editRez.creat_de && (
+              <div style={{ fontSize:11, color:'#94A3B8', marginBottom:8 }}>
+                Creat de: {editRez.creat_de}
               </div>
             )}
 
