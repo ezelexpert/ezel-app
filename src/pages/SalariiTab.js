@@ -37,8 +37,13 @@ export default function SalariiTab() {
       setPontaj(pont || [])
       try {
         const { data: cfg } = await supabase.from('setari').select('valoare').eq('id', `cost_op:${lunaStr}`).single()
-        if (cfg && cfg.valoare) setCostExtra({ utilitati: Number(cfg.valoare.utilitati)||0, consumabile: Number(cfg.valoare.consumabile)||0 })
-        else setCostExtra({ utilitati: 0, consumabile: 0 })
+        if (cfg && cfg.valoare) {
+          const v = cfg.valoare
+          setCostExtra({ utilitati: Number(v.utilitati)||0, consumabile: Number(v.consumabile)||0 })
+          if (v.salarii) setSalariuBaza(v.salarii)
+        } else {
+          setCostExtra({ utilitati: 0, consumabile: 0 })
+        }
       } catch { setCostExtra({ utilitati: 0, consumabile: 0 }) }
     } catch(e) { console.error(e) }
     setLoading(false)
@@ -120,12 +125,13 @@ export default function SalariiTab() {
     return new Date(iso).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })
   }
 
-  async function saveCostExtra() {
+  async function saveCost() {
     const lunaStr = `${an}-${String(luna+1).padStart(2,'0')}`
     try {
-      await supabase.from('setari').upsert({ id: `cost_op:${lunaStr}`, valoare: costExtra, updated_at: new Date().toISOString() })
+      await supabase.from('setari').upsert({ id: `cost_op:${lunaStr}`, valoare: { salarii: salariuBaza, utilitati: Number(costExtra.utilitati)||0, consumabile: Number(costExtra.consumabile)||0 }, updated_at: new Date().toISOString() })
     } catch(e) { console.error(e) }
     setEditCost(false)
+    setEditSalar(false)
   }
 
   return (
@@ -236,7 +242,7 @@ export default function SalariiTab() {
       <div style={{ background:'#fff', border:'1.5px solid #1F3864', borderRadius:10, padding:'14px', marginBottom:14 }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
           <div style={{ fontSize:13, fontWeight:700, color:'#1F3864' }}>🧮 Cost per curățenie — {LUNI_NUME[luna]} {an}</div>
-          <button onClick={() => editCost ? saveCostExtra() : setEditCost(true)}
+          <button onClick={() => editCost ? saveCost() : setEditCost(true)}
             style={{ fontSize:11, padding:'4px 10px', borderRadius:6, border:'1px solid #ddd', background: editCost?'#1F3864':'#fff', color: editCost?'#fff':'#555', cursor:'pointer' }}>
             {editCost ? '💾 Salvează' : 'Modifică'}
           </button>
@@ -279,9 +285,9 @@ export default function SalariiTab() {
       <div style={{ background:'#fff', border:'1px solid #e8e8e8', borderRadius:10, padding:'12px 14px' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: editSalar?10:0 }}>
           <div style={{ fontSize:12, fontWeight:600, color:'#555' }}>⚙️ Salariu de bază</div>
-          <button onClick={() => setEditSalar(p=>!p)}
-            style={{ fontSize:11, padding:'4px 10px', borderRadius:6, border:'1px solid #ddd', background:'#fff', cursor:'pointer', color:'#555' }}>
-            {editSalar ? 'Închide' : 'Modifică'}
+          <button onClick={() => editSalar ? saveCost() : setEditSalar(true)}
+            style={{ fontSize:11, padding:'4px 10px', borderRadius:6, border:'1px solid #ddd', background: editSalar?'#1F3864':'#fff', cursor:'pointer', color: editSalar?'#fff':'#555' }}>
+            {editSalar ? '💾 Salvează' : 'Modifică'}
           </button>
         </div>
         {editSalar && (
