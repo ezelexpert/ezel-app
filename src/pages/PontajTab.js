@@ -88,6 +88,34 @@ export default function PontajTab() {
     load()
   }
 
+  // Seteaza/creeaza ora de intrare sau iesire pentru ziua curenta
+  async function setPontajOra(a, p, field, timeStr) {
+    const today = now.toISOString().split('T')[0]
+    let isoVal = null
+    if (timeStr) {
+      const [h, m] = timeStr.split(':')
+      const d = new Date(today + 'T12:00:00')
+      d.setHours(parseInt(h), parseInt(m), 0, 0)
+      isoVal = d.toISOString()
+    }
+    try {
+      if (p) {
+        await supabase.from('pontaj').update({ [field]: isoVal }).eq('id', p.id)
+      } else if (isoVal) {
+        const { data: u } = await supabase.from('utilizatori_public').select('id').eq('nume', a).maybeSingle()
+        await supabase.from('pontaj').insert({ utilizator_id: u?.id || null, nume: a, data: today, [field]: isoVal })
+      }
+      load()
+    } catch(e) { console.error(e) }
+  }
+
+  async function stergePontaj(p) {
+    if (!p) return
+    if (!window.confirm(`Ștergi pontajul de azi pentru ${p.nume.split(' ')[0]}?`)) return
+    await supabase.from('pontaj').delete().eq('id', p.id)
+    load()
+  }
+
   // Pontaj de azi
   const pontajAzi = pontaj.filter(p => p.data === now.toISOString().split('T')[0])
 
@@ -149,21 +177,29 @@ export default function PontajTab() {
                           {aTerminat && <span style={{ fontSize:11, padding:'3px 8px', borderRadius:10, background:'#EBF1FB', color:'#1F3864', fontWeight:600 }}>✅ Gata</span>}
                         </div>
                       </div>
-                      {p && (
-                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6, fontSize:12 }}>
-                          <div style={{ background:'#f8f9fa', borderRadius:7, padding:'6px 8px', textAlign:'center' }}>
-                            <div style={{ fontWeight:600 }}>{formatOra(p.ora_intrare)}</div>
-                            <div style={{ fontSize:10, color:'#888' }}>Intrare</div>
-                          </div>
-                          <div style={{ background:'#f8f9fa', borderRadius:7, padding:'6px 8px', textAlign:'center' }}>
-                            <div style={{ fontWeight:600 }}>{formatOra(p.ora_iesire)}</div>
-                            <div style={{ fontSize:10, color:'#888' }}>Ieșire</div>
-                          </div>
-                          <div style={{ background:'#f8f9fa', borderRadius:7, padding:'6px 8px', textAlign:'center' }}>
-                            <div style={{ fontWeight:600, color: ore >= 8 ? '#375623' : '#c0392b' }}>{ore ? `${ore}h` : '—'}</div>
-                            <div style={{ fontSize:10, color:'#888' }}>Ore</div>
-                          </div>
+                      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6, fontSize:12 }}>
+                        <div style={{ background:'#f8f9fa', borderRadius:7, padding:'6px 8px', textAlign:'center' }}>
+                          <input type="time" defaultValue={p && p.ora_intrare ? new Date(p.ora_intrare).toTimeString().substring(0,5) : ''}
+                            onBlur={e => setPontajOra(a, p, 'ora_intrare', e.target.value)}
+                            style={{ border:'1px solid #ddd', borderRadius:6, padding:'2px 4px', fontSize:12, width:'100%', textAlign:'center' }} />
+                          <div style={{ fontSize:10, color:'#888', marginTop:2 }}>Intrare</div>
                         </div>
+                        <div style={{ background:'#f8f9fa', borderRadius:7, padding:'6px 8px', textAlign:'center' }}>
+                          <input type="time" defaultValue={p && p.ora_iesire ? new Date(p.ora_iesire).toTimeString().substring(0,5) : ''}
+                            onBlur={e => setPontajOra(a, p, 'ora_iesire', e.target.value)}
+                            style={{ border:'1px solid #ddd', borderRadius:6, padding:'2px 4px', fontSize:12, width:'100%', textAlign:'center' }} />
+                          <div style={{ fontSize:10, color:'#888', marginTop:2 }}>Ieșire</div>
+                        </div>
+                        <div style={{ background:'#f8f9fa', borderRadius:7, padding:'6px 8px', textAlign:'center' }}>
+                          <div style={{ fontWeight:600, color: ore && ore >= 8 ? '#375623' : '#c0392b' }}>{ore ? `${ore}h` : '—'}</div>
+                          <div style={{ fontSize:10, color:'#888' }}>Ore</div>
+                        </div>
+                      </div>
+                      {p && (
+                        <button onClick={() => stergePontaj(p)}
+                          style={{ marginTop:8, width:'100%', padding:'5px', borderRadius:7, border:'1px solid #F5A0A0', background:'#FDECEA', color:'#c0392b', cursor:'pointer', fontSize:11 }}>
+                          🗑 Șterge pontajul de azi
+                        </button>
                       )}
                     </div>
                   )
