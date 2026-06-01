@@ -35,7 +35,7 @@ export default function LenjeriiPage() {
         .from('lenjerii_comenzi')
         .select('*')
         .order('data_livrare', { ascending: false })
-        .limit(30)
+        .limit(500)
       setComenzi(data || [])
     } catch(e) { console.error(e) }
     setLoading(false)
@@ -84,6 +84,16 @@ export default function LenjeriiPage() {
   const comenziViitoare = comenzi.filter(c => c.data_livrare > azi && c.status === 'asteptare')
   const comenziTrecute = comenzi.filter(c => c.data_livrare < azi || c.status === 'livrat')
 
+  // Totaluri lenjerii
+  const totalSeturi = comenzi.reduce((s,c) => s + (Number(c.nr_seturi)||0), 0)
+  const totalKg = Math.round(comenzi.reduce((s,c) => s + (Number(c.total_kg)||0), 0) * 10) / 10
+  const comenziLuna = comenzi.filter(c => (c.data_livrare||'').slice(0,7) === azi.slice(0,7))
+  const lunaSeturi = comenziLuna.reduce((s,c) => s + (Number(c.nr_seturi)||0), 0)
+  const lunaKg = Math.round(comenziLuna.reduce((s,c) => s + (Number(c.total_kg)||0), 0) * 10) / 10
+  const comenziAsteptare = comenzi.filter(c => c.status === 'asteptare')
+  const asteptareSeturi = comenziAsteptare.reduce((s,c) => s + (Number(c.nr_seturi)||0), 0)
+  const asteptareKg = Math.round(comenziAsteptare.reduce((s,c) => s + (Number(c.total_kg)||0), 0) * 10) / 10
+
   return (
     <div style={{ minHeight:'100vh', background:'#f0f4f8' }}>
       {/* Header */}
@@ -97,6 +107,28 @@ export default function LenjeriiPage() {
       </div>
 
       <div style={{ padding:14, maxWidth:500, margin:'0 auto' }}>
+
+        {/* Total lenjerii */}
+        <div style={{ background:'#fff', borderRadius:12, padding:'14px 16px', marginBottom:16, border:'1px solid #e8e8e8', boxShadow:'0 2px 8px rgba(0,0,0,.06)' }}>
+          <div style={{ fontSize:13, fontWeight:700, color:'#4527A0', marginBottom:10 }}>📊 Total lenjerii</div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+            <div style={{ background:'#EDE7F6', borderRadius:9, padding:'10px 6px', textAlign:'center' }}>
+              <div style={{ fontSize:18, fontWeight:700, color:'#4527A0' }}>{lunaSeturi} <span style={{ fontSize:11, fontWeight:600 }}>seturi</span></div>
+              <div style={{ fontSize:13, fontWeight:600, color:'#6A4FB6' }}>{lunaKg} kg</div>
+              <div style={{ fontSize:10, color:'#888', marginTop:3 }}>Luna aceasta</div>
+            </div>
+            <div style={{ background:'#FFF4E5', borderRadius:9, padding:'10px 6px', textAlign:'center' }}>
+              <div style={{ fontSize:18, fontWeight:700, color:'#9a3412' }}>{asteptareSeturi} <span style={{ fontSize:11, fontWeight:600 }}>seturi</span></div>
+              <div style={{ fontSize:13, fontWeight:600, color:'#b45309' }}>{asteptareKg} kg</div>
+              <div style={{ fontSize:10, color:'#888', marginTop:3 }}>⏳ De livrat</div>
+            </div>
+            <div style={{ background:'#EBF1FB', borderRadius:9, padding:'10px 6px', textAlign:'center' }}>
+              <div style={{ fontSize:18, fontWeight:700, color:'#1F3864' }}>{totalSeturi} <span style={{ fontSize:11, fontWeight:600 }}>seturi</span></div>
+              <div style={{ fontSize:13, fontWeight:600, color:'#2c5282' }}>{totalKg} kg</div>
+              <div style={{ fontSize:10, color:'#888', marginTop:3 }}>Σ Total</div>
+            </div>
+          </div>
+        </div>
 
         {/* Form adaugare */}
         <div style={{ background:'#fff', borderRadius:12, padding:'16px', marginBottom:16, border:'1px solid #e8e8e8', boxShadow:'0 2px 8px rgba(0,0,0,.06)' }}>
