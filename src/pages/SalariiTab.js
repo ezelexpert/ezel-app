@@ -14,6 +14,8 @@ export default function SalariiTab() {
   const [luna, setLuna] = useState(now.getMonth())
   const [salariuBaza, setSalariuBaza] = useState({ 'Olar Svitlana': 3000, 'Farcas Adela Georgiana': 3000 })
   const [editSalar, setEditSalar] = useState(false)
+  const [costExtra, setCostExtra] = useState({ utilitati: 0, consumabile: 0 })
+  const [editCost, setEditCost] = useState(false)
 
   useEffect(() => { load() }, [an, luna])
 
@@ -33,6 +35,11 @@ export default function SalariiTab() {
       ])
       setCuratenii(cur || [])
       setPontaj(pont || [])
+      try {
+        const { data: cfg } = await supabase.from('setari').select('valoare').eq('id', `cost_op:${lunaStr}`).single()
+        if (cfg && cfg.valoare) setCostExtra({ utilitati: Number(cfg.valoare.utilitati)||0, consumabile: Number(cfg.valoare.consumabile)||0 })
+        else setCostExtra({ utilitati: 0, consumabile: 0 })
+      } catch { setCostExtra({ utilitati: 0, consumabile: 0 }) }
     } catch(e) { console.error(e) }
     setLoading(false)
   }
@@ -98,6 +105,9 @@ export default function SalariiTab() {
 
   const totalCuratenii = curatenii.length
   const totalBonus = stats.reduce((s, a) => s + a.bonus, 0)
+  const totalSalariiBrute = stats.reduce((s, a) => s + a.baza, 0)
+  const costTotalLuna = totalSalariiBrute + totalBonus + Number(costExtra.utilitati||0) + Number(costExtra.consumabile||0)
+  const costPerCuratenie = totalCuratenii > 0 ? costTotalLuna / totalCuratenii : 0
 
   // Pontaj detaliat pe zile
   const pontajAzi = pontaj.filter(p => {
@@ -108,6 +118,14 @@ export default function SalariiTab() {
   function formatOra(iso) {
     if (!iso) return '—'
     return new Date(iso).toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  async function saveCostExtra() {
+    const lunaStr = `${an}-${String(luna+1).padStart(2,'0')}`
+    try {
+      await supabase.from('setari').upsert({ id: `cost_op:${lunaStr}`, valoare: costExtra, updated_at: new Date().toISOString() })
+    } catch(e) { console.error(e) }
+    setEditCost(false)
   }
 
   return (
@@ -213,6 +231,49 @@ export default function SalariiTab() {
           ))}
         </div>
       )}
+
+      {/* Cost per curatenie */}
+      <div style={{ background:'#fff', border:'1.5px solid #1F3864', borderRadius:10, padding:'14px', marginBottom:14 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+          <div style={{ fontSize:13, fontWeight:700, color:'#1F3864' }}>🧮 Cost per curățenie — {LUNI_NUME[luna]} {an}</div>
+          <button onClick={() => editCost ? saveCostExtra() : setEditCost(true)}
+            style={{ fontSize:11, padding:'4px 10px', borderRadius:6, border:'1px solid #ddd', background: editCost?'#1F3864':'#fff', color: editCost?'#fff':'#555', cursor:'pointer' }}>
+            {editCost ? '💾 Salvează' : 'Modifică'}
+          </button>
+        </div>
+
+        {editCost && (
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
+            <div>
+              <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block' }}>Utilități spălătorie (RON)</label>
+              <input type="number" value={costExtra.utilitati}
+                onChange={e => setCostExtra(p => ({...p, utilitati: Number(e.target.value)}))}
+                style={{ width:'100%', padding:'6px 8px', fontSize:13, border:'1.5px solid #ddd', borderRadius:7, outline:'none', fontWeight:600 }} />
+            </div>
+            <div>
+              <label style={{ fontSize:11, color:'#666', marginBottom:4, display:'block' }}>Consumabile (RON)</label>
+              <input type="number" value={costExtra.consumabile}
+                onChange={e => setCostExtra(p => ({...p, consumabile: Number(e.target.value)}))}
+                style={{ width:'100%', padding:'6px 8px', fontSize:13, border:'1.5px solid #ddd', borderRadius:7, outline:'none', fontWeight:600 }} />
+            </div>
+          </div>
+        )}
+
+        <div style={{ fontSize:12, color:'#555', background:'#f8f9fa', borderRadius:8, padding:'10px 12px', marginBottom:12 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}><span>Salarii brute</span><span style={{ fontWeight:600 }}>{totalSalariiBrute.toLocaleString()} RON</span></div>
+          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}><span>Bonusuri</span><span style={{ fontWeight:600 }}>{totalBonus.toLocaleString()} RON</span></div>
+          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}><span>Utilități spălătorie</span><span style={{ fontWeight:600 }}>{Number(costExtra.utilitati||0).toLocaleString()} RON</span></div>
+          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}><span>Consumabile</span><span style={{ fontWeight:600 }}>{Number(costExtra.consumabile||0).toLocaleString()} RON</span></div>
+          <div style={{ height:1, background:'#e0e0e0', margin:'6px 0' }}></div>
+          <div style={{ display:'flex', justifyContent:'space-between' }}><span style={{ fontWeight:700 }}>Total cheltuieli</span><span style={{ fontWeight:700, color:'#1F3864' }}>{costTotalLuna.toLocaleString()} RON</span></div>
+          <div style={{ display:'flex', justifyContent:'space-between', marginTop:3, color:'#888', fontSize:11 }}><span>împărțit la {totalCuratenii} curățenii din lună</span><span></span></div>
+        </div>
+
+        <div style={{ background:'#1F3864', color:'#fff', borderRadius:8, padding:'12px', textAlign:'center' }}>
+          <div style={{ fontSize:11, opacity:.7, marginBottom:2 }}>Cost mediu per curățenie</div>
+          <div style={{ fontSize:26, fontWeight:700 }}>{costPerCuratenie.toFixed(2)} RON</div>
+        </div>
+      </div>
 
       {/* Editare salariu baza */}
       <div style={{ background:'#fff', border:'1px solid #e8e8e8', borderRadius:10, padding:'12px 14px' }}>
