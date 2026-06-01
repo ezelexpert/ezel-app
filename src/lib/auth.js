@@ -148,8 +148,8 @@ export async function schimbaParola(parolaVeche, parolaNoua) {
   const user = getUser()
   if (!user) return { error: 'Nu ești autentificat.' }
 
-  if (parolaNoua.length < 8) {
-    return { error: 'Parola trebuie să aibă minim 8 caractere.' }
+  if (!parolaNoua) {
+    return { error: 'Introdu o parolă.' }
   }
 
   try {
@@ -183,7 +183,7 @@ export async function adaugaUtilizator(nume, parola, rol) {
 
     if (error) {
       if (error.message?.includes('parola_prea_scurta')) {
-        return { error: 'Parola trebuie să aibă minim 8 caractere.' }
+        return { error: 'Introdu o parolă.' }
       }
       if (error.message?.includes('rol_invalid')) {
         return { error: 'Rol invalid.' }
@@ -202,8 +202,8 @@ export async function reseteazaParola(userId, parolaNoua) {
   const current = getUser()
   if (current?.rol !== 'admin') return { error: 'Nu ai permisiuni.' }
 
-  if (parolaNoua.length < 8) {
-    return { error: 'Parola trebuie să aibă minim 8 caractere.' }
+  if (!parolaNoua) {
+    return { error: 'Introdu o parolă.' }
   }
 
   try {
