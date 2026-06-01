@@ -132,6 +132,27 @@ function AdminPageInner() {
   const [schedulerMsg, setSchedulerMsg] = useState(null)
   const [openDropdown, setOpenDropdown] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [cereriNotif, setCereriNotif] = useState([])
+  const [notifInchis, setNotifInchis] = useState(false)
+
+  useEffect(() => {
+    let activ = true
+    async function incarcaCereri() {
+      try {
+        const { data } = await supabase.from('pontaj_cereri')
+          .select('*').eq('status', 'asteptare').order('created_at', { ascending: false })
+        if (!activ) return
+        const nou = data || []
+        setCereriNotif(prev => {
+          if (nou.length > prev.length) setNotifInchis(false)
+          return nou
+        })
+      } catch(e) { /* ignora */ }
+    }
+    incarcaCereri()
+    const t = setInterval(incarcaCereri, 30000)
+    return () => { activ = false; clearInterval(t) }
+  }, [tab])
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -532,6 +553,30 @@ function AdminPageInner() {
 
   return (
     <div>
+      {/* Notificare float - cereri de pontaj */}
+      {cereriNotif.length > 0 && !notifInchis && tab !== 10 && (
+        <div style={{ position:'fixed', right:16, bottom:16, zIndex:400, width:300, maxWidth:'calc(100vw - 32px)', background:'#fff', border:'1.5px solid #F0C040', borderRadius:12, boxShadow:'0 8px 30px rgba(0,0,0,.18)', overflow:'hidden' }}>
+          <div style={{ background:'#FFF2CC', padding:'10px 12px', display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ fontSize:18 }}>🔔</span>
+            <div style={{ flex:1, fontSize:13, fontWeight:700, color:'#7B5E00' }}>{cereriNotif.length} {cereriNotif.length === 1 ? 'cerere' : 'cereri'} de pontaj</div>
+            <button onClick={() => setNotifInchis(true)} style={{ background:'none', border:'none', fontSize:16, cursor:'pointer', color:'#7B5E00', lineHeight:1 }}>✕</button>
+          </div>
+          <div style={{ padding:'8px 12px', maxHeight:160, overflowY:'auto' }}>
+            {cereriNotif.slice(0,5).map(c => (
+              <div key={c.id} style={{ fontSize:12, color:'#444', padding:'4px 0', borderBottom:'1px solid #f0f0f0' }}>
+                <strong>{(c.nume || '').split(' ')[0]}</strong> — {c.tip === 'intrare' ? 'Clock In' : 'Clock Out'}
+                <span style={{ color:'#999' }}> · {c.ora_solicitata ? new Date(c.ora_solicitata).toLocaleTimeString('ro-RO', { hour:'2-digit', minute:'2-digit' }) : ''}</span>
+                {c.motiv && <div style={{ fontSize:11, color:'#888', marginTop:1 }}>💬 {c.motiv}</div>}
+              </div>
+            ))}
+            {cereriNotif.length > 5 && <div style={{ fontSize:11, color:'#999', paddingTop:4 }}>+{cereriNotif.length - 5} altele</div>}
+          </div>
+          <button onClick={() => { setTab(10); setNotifInchis(true) }}
+            style={{ width:'100%', padding:'10px', background:'#1F3864', color:'#fff', border:'none', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+            Vezi cererile →
+          </button>
+        </div>
+      )}
             {/* Topbar */}
       <div className="topbar">
         <div style={{ flex: 1 }}>
