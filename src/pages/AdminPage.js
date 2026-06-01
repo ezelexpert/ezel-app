@@ -19,7 +19,7 @@ import { checkSiRuleazaVineri, genereazaSaptamana } from '../lib/autoScheduler'
 import DashboardTab from './DashboardTab'
 import SetariPage from './SetariPage'
 import RezervariPage from './RezervariPage'
-import { getNume } from '../lib/auth'
+import { getNume, getRole } from '../lib/auth'
 import { ToastProvider, useToast } from './Toast'
 import GlobalSearch from './GlobalSearch'
 
@@ -950,7 +950,7 @@ function AdminPageInner() {
         )}
 
         {tab === 12 && (
-          getNume() === 'David Salajan'
+          getRole() === 'admin'
             ? <SetariPage />
             : <div style={{ textAlign:'center', padding:'80px 20px' }}>
                 <div style={{ fontSize:48, marginBottom:16 }}>🔒</div>
