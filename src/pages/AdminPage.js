@@ -458,28 +458,49 @@ function AdminPageInner() {
     toast.success(`✓ Actualizate ${list.length} apartamente`)
   }
 
+  // Verifica ce apartamente au deja curatenie in ziua respectiva (o singura curatenie / zi)
+  async function aptCuCuratenieInZi(lista, data) {
+    try {
+      const { data: ex } = await supabase.from('curatenie')
+        .select('nr_apt').eq('data_programata', data).in('nr_apt', lista)
+      return new Set((ex || []).map(c => c.nr_apt))
+    } catch(e) { console.error(e); return new Set() }
+  }
+
   async function saveCurUnic() {
+    if (!editData.nr_apt || !editData.data_programata) { toast.error('Alege apartamentul și data!'); return }
+    const existSet = await aptCuCuratenieInZi([editData.nr_apt], editData.data_programata)
+    if (existSet.has(editData.nr_apt)) { toast.error(`AP ${editData.nr_apt} este deja programat la curățenie în această zi.`); return }
     const apt = apts.find(a => a.nr === editData.nr_apt)
     await programeazaCuratenie({ ...editData, tip_apt: apt?.tip, firma: apt?.firma })
     setModal(null)
     const c = await getCuratenie(); setCuratenii(c)
+    toast.success('✓ Curățenie programată')
   }
 
   async function saveCurMulti() {
     const list = editData.selApts || []
     if (!list.length) { toast.error('Selectați cel puțin un apartament!'); return }
-    await programeazaCuratenieMultipla(list, editData.data_programata, editData.tip_curatenie, editData.observatii, apts)
+    const existSet = await aptCuCuratenieInZi(list, editData.data_programata)
+    const deProgramat = list.filter(nr => !existSet.has(nr))
+    if (deProgramat.length === 0) { toast.error('Toate apartamentele selectate sunt deja programate în această zi.'); return }
+    await programeazaCuratenieMultipla(deProgramat, editData.data_programata, editData.tip_curatenie, editData.observatii, apts)
     setModal(null)
     const c = await getCuratenie(); setCuratenii(c)
-    toast.success(`✓ ${list.length} apartamente programate`)
+    const sarite = list.length - deProgramat.length
+    toast.success(`✓ ${deProgramat.length} programate${sarite ? ` · ${sarite} deja programate (sărite)` : ''}`)
   }
 
   async function saveCurApt() {
     const list = Array.from(selApts)
-    await programeazaCuratenieMultipla(list, editData.data_programata, editData.tip_curatenie, editData.observatii||'', apts)
+    const existSet = await aptCuCuratenieInZi(list, editData.data_programata)
+    const deProgramat = list.filter(nr => !existSet.has(nr))
+    if (deProgramat.length === 0) { toast.error('Toate apartamentele selectate sunt deja programate în această zi.'); return }
+    await programeazaCuratenieMultipla(deProgramat, editData.data_programata, editData.tip_curatenie, editData.observatii||'', apts)
     setModal(null); clearSel()
     const c = await getCuratenie(); setCuratenii(c)
-    toast.success(`✓ ${list.length} curățenii programate`)
+    const sarite = list.length - deProgramat.length
+    toast.success(`✓ ${deProgramat.length} curățenii programate${sarite ? ` · ${sarite} deja programate` : ''}`)
   }
 
   async function handleCellAction(action, curatenie) {
@@ -498,6 +519,8 @@ function AdminPageInner() {
   }
 
   async function programeazaDinCalendar(obj) {
+    const existSet = await aptCuCuratenieInZi([obj.nr_apt], obj.data_programata)
+    if (existSet.has(obj.nr_apt)) { toast.error(`AP ${obj.nr_apt} este deja programat la curățenie în această zi.`); return }
     const apt = apts.find(a => a.nr === obj.nr_apt)
     await programeazaCuratenie({ data_programata: obj.data_programata, nr_apt: obj.nr_apt, tip_apt: apt?.tip, firma: apt?.firma, tip_curatenie: obj.tip_curatenie, observatii: '' })
   }
