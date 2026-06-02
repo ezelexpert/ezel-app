@@ -88,7 +88,6 @@ const NAV_GROUPS = [
     key: 'operational', label: '⚙️ Operațional',
     items: [
       { label: '🧹 Curățenie', tab: 0 },
-      { label: '🏠 Apartamente', tab: 1 },
       { label: '📊 Statistici', tab: 5 },
       { label: '🧺 Spălătorie', tab: 8 },
       { label: '🔧 Mentenanță', tab: 6 },
