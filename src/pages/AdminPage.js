@@ -15,7 +15,8 @@ import IncasariTab from './IncasariTab'
 import SpalatoriePage from './SpalatoriePage'
 import SalariiTab from './SalariiTab'
 import PontajTab from './PontajTab'
-import { checkSiRuleazaVineri, genereazaSaptamana } from '../lib/autoScheduler'
+import { checkSiRuleazaJoi, genereazaSaptamana, programeazaIntermediara } from '../lib/autoScheduler'
+import ZileLucratoarePanel from '../components/ZileLucratoarePanel'
 import DashboardTab from './DashboardTab'
 import SetariPage from './SetariPage'
 import RezervariPage from './RezervariPage'
@@ -205,7 +206,7 @@ function AdminPageInner() {
   useEffect(() => {
     // Incarca datele si ruleaza scheduler dupa
     loadAll().then(() => {
-      checkSiRuleazaVineri().then(result => {
+      checkSiRuleazaJoi().then(result => {
         if (result && result.programate > 0) {
           toast.success(`Auto-programat ${result.programate} curățenii pentru săptămâna viitoare!`)
           setSchedulerMsg(`✅ Auto-programat ${result.programate} curățenii!`)
@@ -525,6 +526,33 @@ function AdminPageInner() {
     await programeazaCuratenie({ data_programata: obj.data_programata, nr_apt: obj.nr_apt, tip_apt: apt?.tip, firma: apt?.firma, tip_curatenie: obj.tip_curatenie, observatii: '' })
   }
 
+  // Calculeaza check-in / check-out din editData (apt deschis in modal)
+  function getSejurEditData() {
+    const checkin = normalizeData(editData.data_checkin || '')
+    let checkout = normalizeData(editData.data_elib || '')
+    if (!checkout && editData.nr_nopti && checkin) {
+      const d = new Date(checkin); d.setDate(d.getDate() + parseInt(editData.nr_nopti))
+      checkout = dateStrLocal(d)
+    }
+    if (!checkin || !checkout) return null
+    const nopti = Math.round((new Date(checkout) - new Date(checkin)) / 86400000)
+    return { checkin, checkout, nopti }
+  }
+
+  // Curatenie intermediara optionala (sejur <= 15 nopti)
+  async function handleIntermediara() {
+    const sejur = getSejurEditData()
+    if (!sejur) { toast.error('Setează check-in și data eliberării (sau nr. nopți).'); return }
+    const apt = apts.find(a => a.nr === editData.nr) || { nr: editData.nr, tip: editData.tip, firma: editData.firma }
+    const r = await programeazaIntermediara(apt, sejur.checkin, sejur.checkout)
+    if (r.ok) {
+      toast.success('✓ ' + r.msg)
+      const c = await getCuratenie(); setCuratenii(c)
+    } else {
+      toast.error(r.msg)
+    }
+  }
+
   async function saveIst() {
     const s = editData.data_start, e = editData.data_end, p = Number(editData.pret_noapte)||0
     const z = s&&e ? Math.max(0, Math.round((new Date(e)-new Date(s))/86400000)) : 0
@@ -701,6 +729,8 @@ function AdminPageInner() {
         )}
 
         {tab === 0 && (
+          <>
+          <ZileLucratoarePanel />
           <Calendar apts={apts} curatenii={curatenii} calAn={calAn} calLuna={calLuna}
             onChangeMonth={(d) => { let l = calLuna+d, a = calAn; if(l>11){l=0;a++}if(l<0){l=11;a--}; setCalLuna(l); setCalAn(a) }}
             onCellClick={(nr, zi, data) => {
@@ -732,6 +762,7 @@ function AdminPageInner() {
             }}
             onAddUnic={() => { setEditData({ nr_apt: apts[0]?.nr, data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('curUnic') }}
           />
+          </>
         )}
 
         {/* APARTAMENTE - Timeline view */}
@@ -1142,6 +1173,22 @@ function AdminPageInner() {
               ✓ Curățenie generală pe {(() => { try { const d = new Date(editData.data_checkin); d.setDate(d.getDate() + parseInt(editData.nr_nopti)); return d.toLocaleDateString('ro-RO') } catch(e) { return '' } })()}
             </div>
           )}
+          {/* Curatenie intermediara optionala — doar pentru sejururi <= 15 nopti */}
+          {(() => {
+            const sejur = getSejurEditData()
+            if (!sejur || sejur.nopti < 3 || sejur.nopti > 15) return null
+            return (
+              <div style={{ marginTop: 8 }}>
+                <button className="btn" style={{ background: '#EBF1FB', color: '#1F3864', border: '1px solid #C7DAFF', width: '100%' }}
+                  onClick={handleIntermediara}>
+                  🧹 + Curățenie intermediară (sejur {sejur.nopti} nopți)
+                </button>
+                <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 4 }}>
+                  Opțional — la mijlocul sejurului. Generala la check-out se programează oricum.
+                </div>
+              </div>
+            )
+          })()}
           <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
             <button className="btn btn-p" style={{ flex: 1 }} onClick={saveEditApt} disabled={saving}>
               {saving ? '⏳ Se salvează...' : 'Salvează'}

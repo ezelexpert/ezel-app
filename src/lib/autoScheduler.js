@@ -1,6 +1,13 @@
 import { supabase } from './supabase'
+import {
+  getSetariZile,
+  isZiLucratoare,
+  urmatoareaZiLucratoare as urmZiLucr,
+  ziLucratoareInainte,
+} from './zileLucratoare'
 
-const MAX_PER_ZI = 12
+const MAX_PER_ZI = 12        // plafon SOFT (depășibil pentru generale și cadență 10 zile)
+const CADENTA_MAX = 10       // interval maxim între curățenii (zile)
 const ELM_FIRME = ['elm', 'electromontaj']
 
 // ── Utilitare date ────────────────────────────────────────────
@@ -28,18 +35,9 @@ function diffZile(d1, d2) {
   return Math.round((b - a) / 86400000)
 }
 
-// Verifica daca e zi lucratoare (luni-vineri)
-function isLucratoare(d) {
-  const zi = d.getDay()
-  return zi >= 1 && zi <= 5
-}
-
-// Returneaza urmatoarea zi lucratoare (inclusiv ziua data daca e lucratoare)
-function urmatoareaZiLucratoare(d) {
-  const r = new Date(d)
-  r.setHours(0,0,0,0)
-  while (!isLucratoare(r)) r.setDate(r.getDate() + 1)
-  return r
+// Wrapper: următoarea zi lucrătoare folosind setările (weekend + sărbători + override).
+function urmatoareaZiLucratoare(d, setari) {
+  return urmZiLucr(d, setari)
 }
 
 // Cea mai apropiata zi luni sau vineri - cauta in ambele directii
@@ -84,18 +82,31 @@ function parseazaNota(nota) {
 // ── Functia principala ────────────────────────────────────────
 export async function genereazaSaptamana() {
   try {
+    const setari = await getSetariZile(true)
     const azi = new Date(); azi.setHours(0,0,0,0)
     const aziStr = dateStr(azi)
 
-    // Saptamana viitoare luni-vineri
+    // Saptamana viitoare: luni -> duminica
     const ziAzi = azi.getDay()
     const paneLuni = ziAzi === 0 ? 1 : (8 - ziAzi)
     const luni = addZile(azi, paneLuni)
-    const vineri = addZile(luni, 4)
+    const duminica = addZile(luni, 6)
     const luniStr = dateStr(luni)
-    const vineriStr = dateStr(vineri)
+    const dumStr = dateStr(duminica)
 
-    console.log(`[Scheduler] Generez ${luniStr} - ${vineriStr}`)
+    // Zilele LUCRATOARE din saptamana viitoare (respecta weekend on/off + sarbatori + override)
+    const zileLucr = []
+    for (let i = 0; i < 7; i++) {
+      const d = addZile(luni, i)
+      if (isZiLucratoare(d, setari)) zileLucr.push(d)
+    }
+    if (!zileLucr.length) {
+      console.log('[Scheduler] Saptamana viitoare nu are zile lucratoare')
+      return { programate: 0, skipped: 0 }
+    }
+    const ultimaLucr = zileLucr[zileLucr.length - 1]
+
+    console.log(`[Scheduler] Generez ${luniStr} - ${dumStr} (${zileLucr.length} zile lucratoare)`)
 
     // Ia toate apartamentele ocupate sau care elibereaza
     const { data: apts } = await supabase
@@ -112,14 +123,12 @@ export async function genereazaSaptamana() {
       .gte('data_programata', aziStr)
       .neq('status_curatenie', 'finalizata')
 
-    // Contorizare per zi pentru saptamana viitoare
+    // Contorizare per zi LUCRATOARE din saptamana viitoare
     const slot = {}
-    for (let i = 0; i < 5; i++) {
-      slot[dateStr(addZile(luni, i))] = 0
-    }
+    zileLucr.forEach(d => { slot[dateStr(d)] = 0 })
     // Adauga curateniile deja existente in saptamana viitoare
     ;(existente || []).forEach(c => {
-      if (c.data_programata >= luniStr && c.data_programata <= vineriStr) {
+      if (c.data_programata >= luniStr && c.data_programata <= dumStr) {
         if (slot[c.data_programata] !== undefined) slot[c.data_programata]++
       }
     })
@@ -152,8 +161,8 @@ export async function genereazaSaptamana() {
       const dataElib = parseDate(apt.data_elib)
       if (!dataElib) continue
 
-      // Doar daca elibereaza in saptamana viitoare
-      if (apt.data_elib < luniStr || apt.data_elib > vineriStr) continue
+      // Doar daca elibereaza in saptamana viitoare (generala se pune pe data elib chiar daca e weekend/sarbatoare)
+      if (apt.data_elib < luniStr || apt.data_elib > dumStr) continue
 
       // Verifica daca nu are deja curatenie generala programata
       const areGenerala = (programateViitor[apt.nr] || []).some(d => d === apt.data_elib)
@@ -178,6 +187,7 @@ export async function genereazaSaptamana() {
 
     // ── STEP 2: Calculeaza urmatoarea curatenie pentru fiecare apt ──
     const deSchedulat = []
+    const primaLucr = zileLucr[0]
 
     for (const apt of apts) {
       // Baza de calcul: ultima curatenie finalizata sau data check-in
@@ -189,22 +199,16 @@ export async function genereazaSaptamana() {
 
       if (!ultimaFacuta) continue
 
+      // Termen limita cadenta: ultima + 10 zile (nu se incalca niciodata)
+      const maxData = addZile(ultimaFacuta, CADENTA_MAX)
+
       // Calculeaza urmatoarea curatenie: ultima + 7 zile -> zi lucratoare
-      let urmatoarea = urmatoareaZiLucratoare(addZile(ultimaFacuta, 7))
+      let urmatoarea = urmatoareaZiLucratoare(addZile(ultimaFacuta, 7), setari)
 
-      // Daca urmatoarea e in trecut -> prima zi lucratoare disponibila din saptamana viitoare
-      if (urmatoarea < luni) {
-        // Cat de tarziu suntem? Daca depaseste 10 zile -> urgent
-        const zileIntarziere = diffZile(urmatoarea, azi)
-        if (zileIntarziere > 3) {
-          urmatoarea = luni // Urgent - prima zi a saptamanii viitoare
-        } else {
-          urmatoarea = urmatoareaZiLucratoare(addZile(ultimaFacuta, 7))
-          if (urmatoarea < luni) urmatoarea = luni
-        }
-      }
+      // Daca urmatoarea e inainte de saptamana viitoare -> prima zi lucratoare a saptamanii
+      if (urmatoarea < primaLucr) urmatoarea = primaLucr
 
-      // Verifica daca are deja curatenie programata in intervalul valid (7-10 zile)
+      // Verifica daca are deja curatenie programata in intervalul valid (7-14 zile)
       const areInInterval = (programateViitor[apt.nr] || []).some(d => {
         const diff = diffZile(ultimaFacuta, parseDate(d))
         return diff >= 7 && diff <= 14
@@ -212,17 +216,21 @@ export async function genereazaSaptamana() {
       if (areInInterval) { skipped++; continue }
 
       // Verifica daca urmatoarea e in saptamana viitoare
-      if (urmatoarea < luni || urmatoarea > vineri) { skipped++; continue }
+      if (urmatoarea < primaLucr || urmatoarea > ultimaLucr) { skipped++; continue }
 
-      const nota = parseazaNota(apt.nota)
-      const urgent = diffZile(ultimaFacuta, azi) >= 9 // aproape de ziua 10
+      const zileDeLaUltima = diffZile(ultimaFacuta, azi)
+      const urgent = zileDeLaUltima >= 9 // aproape de ziua 10
+      // Obligatorie daca termenul de cadenta (10 zile) cade in/inaintea saptamanii viitoare
+      const obligatoriu = maxData <= ultimaLucr
 
       deSchedulat.push({
         apt,
         targetDate: urmatoarea,
+        maxData,
         urgent,
+        obligatoriu,
         isElm: isELM(apt.firma),
-        zileDeLaUltima: diffZile(ultimaFacuta, azi)
+        zileDeLaUltima
       })
     }
 
@@ -238,35 +246,50 @@ export async function genereazaSaptamana() {
       let dataFinala
 
       if (item.isElm) {
-        // ELM: luni sau vineri in saptamana viitoare, cea mai apropiata de targetDate
-        const elmZile = [luni, vineri] // luni si vineri din saptamana viitoare
-        // Gaseste ziua ELM cea mai apropiata de targetDate dar IN saptamana viitoare
+        // ELM: luni sau vineri din saptamana viitoare, ajustate la zi lucratoare,
+        // cea mai apropiata de targetDate. ELM depaseste plafonul.
+        const candidati = [luni, addZile(luni, 4)]
+          .map(z => urmatoareaZiLucratoare(z, setari))
+          .filter(z => z <= ultimaLucr)
         let bestElm = null, bestDiff = Infinity
-        for (const z of elmZile) {
+        for (const z of candidati) {
           const diff = Math.abs(diffZile(item.targetDate, z))
           if (diff < bestDiff) { bestDiff = diff; bestElm = z }
         }
         if (!bestElm) { skipped++; continue }
         dataFinala = dateStr(bestElm)
-        // ELM depaseste limita
       } else {
-        // Normal: incearca targetDate, daca e plina gaseste cea mai libera zi
+        // Normal: incearca targetDate (sub plafon), altfel ziua lucratoare cea mai libera.
         const targetStr = dateStr(item.targetDate)
 
         if (slot[targetStr] !== undefined && slot[targetStr] < MAX_PER_ZI) {
           dataFinala = targetStr
         } else {
-          // Gaseste ziua cea mai libera din saptamana viitoare
+          // Cauta ziua lucratoare cea mai libera, sub plafon
           let minSlot = Infinity, ziGasita = null
-          for (let i = 0; i < 5; i++) {
-            const d = dateStr(addZile(luni, i))
-            if (slot[d] < MAX_PER_ZI && slot[d] < minSlot) {
-              minSlot = slot[d]
-              ziGasita = d
-            }
+          for (const d of Object.keys(slot)) {
+            if (slot[d] < MAX_PER_ZI && slot[d] < minSlot) { minSlot = slot[d]; ziGasita = d }
           }
-          if (!ziGasita) { skipped++; continue }
-          dataFinala = ziGasita
+          if (ziGasita) {
+            dataFinala = ziGasita
+          } else if (item.obligatoriu) {
+            // PLAFON SOFT: toate zilele sunt la limita, dar cadenta de 10 zile obliga.
+            // Pune pe ziua lucratoare <= maxData cea mai putin incarcata (sau cea mai libera).
+            let best = null, bestN = Infinity
+            for (const d of Object.keys(slot)) {
+              if (parseDate(d) <= item.maxData && slot[d] < bestN) { bestN = slot[d]; best = d }
+            }
+            if (!best) {
+              for (const d of Object.keys(slot)) {
+                if (slot[d] < bestN) { bestN = slot[d]; best = d }
+              }
+            }
+            if (!best) { skipped++; continue }
+            dataFinala = best
+          } else {
+            // Intretinere flexibila: se amana in alta saptamana lucratoare
+            skipped++; continue
+          }
         }
       }
 
@@ -297,7 +320,7 @@ export async function genereazaSaptamana() {
       await supabase.from('log_actiuni').insert({
         user_tip: 'admin',
         actiune: 'Auto-programare saptamana',
-        detalii: `${programate} curatenii pentru ${luniStr}-${vineriStr}`
+        detalii: `${programate} curatenii pentru ${luniStr}-${dumStr}`
       })
     }
 
@@ -314,6 +337,7 @@ export async function genereazaSaptamana() {
 // ── Programare luna viitoare (dupa 15 ale lunii) ─────────────
 export async function programeazaLunaViitoare() {
   try {
+    const setari = await getSetariZile(true)
     const azi = new Date(); azi.setHours(0,0,0,0)
     const lunaViitoare = new Date(azi.getFullYear(), azi.getMonth() + 1, 1)
     const lunaVStr = lunaViitoare.getFullYear() + '-' + String(lunaViitoare.getMonth()+1).padStart(2,'0')
@@ -362,21 +386,21 @@ export async function programeazaLunaViitoare() {
       // Calculeaza datele pentru luna viitoare
       // Prima curatenie: baza + 7 zile, daca e in luna viitoare
       // Urmatoarele: fiecare la +7 zile
-      let cursor = urmatoareaZiLucratoare(addZile(baza, 7))
+      let cursor = urmatoareaZiLucratoare(addZile(baza, 7), setari)
 
       // Daca cursor e inainte de luna viitoare, avanseaza
-      while (cursor < lunaViitoare) cursor = urmatoareaZiLucratoare(addZile(cursor, 7))
+      while (cursor < lunaViitoare) cursor = urmatoareaZiLucratoare(addZile(cursor, 7), setari)
 
       for (let i = 0; i < ramas; i++) {
         if (cursor > new Date(lunaViitoare.getFullYear(), lunaViitoare.getMonth() + 1, 0)) break
 
         const dataStr2 = dateStr(cursor)
 
-        // ELM: ajusteaza la luni/vineri
+        // ELM: ajusteaza la luni/vineri (zi lucratoare)
         let dataFinala = dataStr2
         if (isELM(apt.firma)) {
           const adjusted = celMaiApropiataLuniSauVineri(cursor)
-          dataFinala = dateStr(adjusted)
+          dataFinala = dateStr(urmatoareaZiLucratoare(adjusted, setari))
         }
 
         deProgramat.push({
@@ -390,7 +414,7 @@ export async function programeazaLunaViitoare() {
           amanare_status: ''
         })
         programate++
-        cursor = urmatoareaZiLucratoare(addZile(cursor, 7))
+        cursor = urmatoareaZiLucratoare(addZile(cursor, 7), setari)
       }
     }
 
@@ -407,8 +431,8 @@ export async function programeazaLunaViitoare() {
   } catch(e) { console.error('[Scheduler luna]', e); return { programate: 0 } }
 }
 
-// ── Check si ruleaza ─────────────────────────────────────────
-export async function checkSiRuleazaVineri() {
+// ── Check si ruleaza (generare automata JOI la 10:00) ─────────
+export async function checkSiRuleazaJoi() {
   const azi = new Date()
   const aziStr = dateStr(azi)
 
@@ -420,8 +444,9 @@ export async function checkSiRuleazaVineri() {
     if (!logLuna?.length) programeazaLunaViitoare()
   }
 
-  // Doar vineri -> programeaza saptamana viitoare
-  if (azi.getDay() !== 5) return null
+  // Doar JOI, de la ora 10:00 -> programeaza saptamana viitoare
+  if (azi.getDay() !== 4) return null
+  if (azi.getHours() < 10) return null
 
   const { data: log } = await supabase.from('log_actiuni').select('id')
     .eq('actiune', 'Auto-programare saptamana')
@@ -429,4 +454,75 @@ export async function checkSiRuleazaVineri() {
   if (log?.length > 0) return null
 
   return genereazaSaptamana()
+}
+
+// Compatibilitate inapoi (vechiul nume) — ruleaza acum joi la 10:00.
+export const checkSiRuleazaVineri = checkSiRuleazaJoi
+
+// ── Curatenie intermediara optionala (sejur <= 15 nopti) ──────
+// Calculeaza data unei singure curatenii intermediare la mijlocul sejurului,
+// snap pe zi lucratoare, strict intre check-in si check-out.
+export function calculeazaDataIntermediara(checkinStr, checkoutStr, setari) {
+  const checkin = parseDate(checkinStr)
+  const checkout = parseDate(checkoutStr)
+  if (!checkin || !checkout) return null
+  const nopti = diffZile(checkin, checkout)
+  if (nopti < 3) return null // prea scurt pentru o intermediara utila
+
+  // Tinta: mijlocul sejurului, dar nu mai tarziu de 10 zile de la check-in (cadenta)
+  let offset = Math.round(nopti / 2)
+  if (offset > CADENTA_MAX) offset = CADENTA_MAX
+  let target = urmatoareaZiLucratoare(addZile(checkin, offset), setari)
+
+  // Trebuie sa ramana strict intre check-in si check-out (comparatie pe zile intregi)
+  if (diffZile(checkin, target) >= nopti) {
+    // tinta a ajuns la/dupa check-out -> cauta o zi lucratoare inainte de check-out
+    target = ziLucratoareInainte(addZile(checkout, -1), setari, checkin)
+  }
+  if (!target) return null
+  const dci = diffZile(checkin, target) // zile de la check-in
+  if (dci <= 0 || dci >= nopti) return null
+  return dateStr(target)
+}
+
+// Programeaza efectiv curatenia intermediara. Returneaza { ok, msg, data }.
+export async function programeazaIntermediara(apt, checkinStr, checkoutStr) {
+  try {
+    const setari = await getSetariZile()
+    const checkin = parseDate(checkinStr)
+    const checkout = parseDate(checkoutStr)
+    if (!checkin || !checkout) return { ok: false, msg: 'Lipsesc datele de check-in / check-out.' }
+    const nopti = diffZile(checkin, checkout)
+    if (nopti <= 0) return { ok: false, msg: 'Check-out trebuie sa fie dupa check-in.' }
+    if (nopti > 15) return { ok: false, msg: 'Peste 15 nopti: intretinerea se programeaza automat.' }
+
+    const data = calculeazaDataIntermediara(checkinStr, checkoutStr, setari)
+    if (!data) return { ok: false, msg: 'Sejur prea scurt pentru o curatenie intermediara.' }
+
+    // O singura programare per apartament per zi
+    const { data: ex } = await supabase.from('curatenie')
+      .select('id').eq('nr_apt', apt.nr).eq('data_programata', data)
+    if (ex && ex.length > 0) return { ok: false, msg: `AP ${apt.nr} are deja o curatenie pe ${data}.` }
+
+    const { error } = await supabase.from('curatenie').insert({
+      data_programata: data,
+      nr_apt: apt.nr,
+      tip_apt: apt.tip || 'simplu',
+      firma: apt.firma || '',
+      tip_curatenie: 'intretinere',
+      status_curatenie: 'programata',
+      observatii: 'Intermediara (manual)',
+      amanare_status: ''
+    })
+    if (error) return { ok: false, msg: error.message }
+
+    await supabase.from('apartamente').update({ curatenie_status: 'programata' }).eq('nr', apt.nr)
+    await supabase.from('log_actiuni').insert({
+      user_tip: 'admin', actiune: 'Curatenie intermediara', nr_apt: apt.nr, detalii: data
+    })
+    return { ok: true, msg: `Curatenie intermediara programata pe ${data}.`, data }
+  } catch (e) {
+    console.error('[Intermediara]', e)
+    return { ok: false, msg: e.message }
+  }
 }
