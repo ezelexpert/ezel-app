@@ -3,7 +3,7 @@ import React, { useMemo, useState } from 'react'
 const LUNI = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie']
 const ZS = ['Du','Lu','Ma','Mi','Jo','Vi','Sa']
 
-export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMonth, onCellClick, onAddMulti, onAddUnic, onAutoSchedule, onStergeCuratenii, onMutaCuratenie }) {
+export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMonth, onCellClick, onAddMulti, onAddUnic, onAutoSchedule, onStergeCuratenii, onStergeSaptamanaViitoare, onMutaCuratenie }) {
   const [modStergere, setModStergere] = useState(false)
   const [selectate, setSelectate] = useState([]) // [{id, nr_apt, zi}]
   const [dragItem, setDragItem] = useState(null) // curatenia trasa
@@ -98,6 +98,7 @@ export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMont
             <button className="btn btn-g" onClick={onAddMulti}>+ Curățenie multiplă</button>
             <button className="btn btn-p" onClick={onAddUnic}>+ Unic</button>
             {onAutoSchedule && <button className="btn" style={{ background:'#E2EFDA', color:'#375623', border:'1px solid #C0DD97' }} onClick={onAutoSchedule}>🤖 Auto-planificare</button>}
+            {onStergeSaptamanaViitoare && <button className="btn" style={{ background:'#FDECEA', color:'#c0392b', border:'1px solid #F5A0A0' }} onClick={onStergeSaptamanaViitoare}>🗑 Șterge săpt. viitoare</button>}
             <button className="btn" style={{ background:'#FDECEA', color:'#c0392b', border:'1px solid #F5A0A0' }}
               onClick={() => { setModStergere(true); setSelectate([]) }}>
               🗑 Selectează pentru ștergere

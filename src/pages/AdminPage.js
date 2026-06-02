@@ -757,6 +757,20 @@ function AdminPageInner() {
               for (const id of ids) await stergeCuratenie(id)
               const c = await getCuratenie(); setCuratenii(c)
             }}
+            onStergeSaptamanaViitoare={async () => {
+              const a = new Date(); a.setHours(0,0,0,0)
+              const zi = a.getDay()
+              const luni = new Date(a); luni.setDate(luni.getDate() + (zi === 0 ? 1 : (8 - zi)))
+              const dum = new Date(luni); dum.setDate(dum.getDate() + 6)
+              const f = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0')
+              const ok = await new Promise(res => { toast.confirm(`Ștergi curățeniile PROGRAMATE pentru săptămâna viitoare (${f(luni)} – ${f(dum)})? Cele finalizate rămân.`, () => res(true)); setTimeout(() => res(false), 10000) })
+              if (!ok) return
+              const { error } = await supabase.from('curatenie').delete()
+                .eq('status_curatenie', 'programata').gte('data_programata', f(luni)).lte('data_programata', f(dum))
+              if (error) { toast.error('Eroare: ' + error.message); return }
+              const c = await getCuratenie(); setCuratenii(c)
+              toast.success('✓ Curățeniile săptămânii viitoare au fost șterse')
+            }}
             onMutaCuratenie={async (id, dataNoua) => {
               await supabase.from('curatenie').update({ data_programata: dataNoua }).eq('id', id)
               const c = await getCuratenie(); setCuratenii(c)
