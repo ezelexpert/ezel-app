@@ -69,6 +69,17 @@ function isELM(firma) {
   return ELM_FIRME.some(f => firma.toLowerCase().includes(f))
 }
 
+// Apartamentul are deja o curatenie pe data ceruta sau la <= prag zile distanta?
+// prag = 1 -> aceeasi zi sau zi consecutiva (evita 2 zile la rand).
+function areCuratenieAproape(programateViitor, nr, dataStr, prag) {
+  const d = parseDate(dataStr)
+  if (!d) return false
+  return (programateViitor[nr] || []).some(x => {
+    const xd = parseDate(x)
+    return xd && Math.abs(diffZile(xd, d)) <= prag
+  })
+}
+
 // Parseaza nota c/l: "2c/l", "1c/l", "2 C/L" etc
 function parseazaNota(nota) {
   if (!nota) return null
@@ -243,14 +254,16 @@ export async function genereazaSaptamana() {
     })
 
     for (const item of deSchedulat) {
-      let dataFinala
+      const nr = item.apt.nr
+      let dataFinala = null
 
       if (item.isElm) {
-        // ELM: luni sau vineri din saptamana viitoare, ajustate la zi lucratoare,
-        // cea mai apropiata de targetDate. ELM depaseste plafonul.
+        // ELM: O SINGURA curatenie/saptamana, luni SAU vineri (cea mai apropiata de target),
+        // fara zi consecutiva cu alta curatenie a apartamentului. ELM depaseste plafonul.
         const candidati = [luni, addZile(luni, 4)]
           .map(z => urmatoareaZiLucratoare(z, setari))
           .filter(z => z <= ultimaLucr)
+          .filter(z => !areCuratenieAproape(programateViitor, nr, dateStr(z), 1))
         let bestElm = null, bestDiff = Infinity
         for (const z of candidati) {
           const diff = Math.abs(diffZile(item.targetDate, z))
@@ -259,44 +272,43 @@ export async function genereazaSaptamana() {
         if (!bestElm) { skipped++; continue }
         dataFinala = dateStr(bestElm)
       } else {
-        // Normal: incearca targetDate (sub plafon), altfel ziua lucratoare cea mai libera.
+        // Normal: targetDate (sub plafon, fara zi consecutiva), altfel ziua libera fara consecutive.
         const targetStr = dateStr(item.targetDate)
 
-        if (slot[targetStr] !== undefined && slot[targetStr] < MAX_PER_ZI) {
+        if (slot[targetStr] !== undefined && slot[targetStr] < MAX_PER_ZI
+            && !areCuratenieAproape(programateViitor, nr, targetStr, 1)) {
           dataFinala = targetStr
         } else {
-          // Cauta ziua lucratoare cea mai libera, sub plafon
-          let minSlot = Infinity, ziGasita = null
+          // Cauta ziua lucratoare cea mai libera, sub plafon, FARA zile consecutive.
+          let minSlot = Infinity
           for (const d of Object.keys(slot)) {
-            if (slot[d] < MAX_PER_ZI && slot[d] < minSlot) { minSlot = slot[d]; ziGasita = d }
+            if (slot[d] < MAX_PER_ZI && slot[d] < minSlot
+                && !areCuratenieAproape(programateViitor, nr, d, 1)) { minSlot = slot[d]; dataFinala = d }
           }
-          if (ziGasita) {
-            dataFinala = ziGasita
-          } else if (item.obligatoriu) {
-            // PLAFON SOFT: toate zilele sunt la limita, dar cadenta de 10 zile obliga.
-            // Pune pe ziua lucratoare <= maxData cea mai putin incarcata (sau cea mai libera).
-            let best = null, bestN = Infinity
+          if (!dataFinala && item.obligatoriu) {
+            // PLAFON SOFT: cadenta de 10 zile obliga. Alege o zi fara conflict de zile
+            // consecutive, de preferat <= maxData; altfel cea mai libera fara conflict.
+            let bestN = Infinity
             for (const d of Object.keys(slot)) {
-              if (parseDate(d) <= item.maxData && slot[d] < bestN) { bestN = slot[d]; best = d }
+              if (parseDate(d) <= item.maxData
+                  && !areCuratenieAproape(programateViitor, nr, d, 1) && slot[d] < bestN) { bestN = slot[d]; dataFinala = d }
             }
-            if (!best) {
+            if (!dataFinala) {
               for (const d of Object.keys(slot)) {
-                if (slot[d] < bestN) { bestN = slot[d]; best = d }
+                if (!areCuratenieAproape(programateViitor, nr, d, 1) && slot[d] < bestN) { bestN = slot[d]; dataFinala = d }
               }
             }
-            if (!best) { skipped++; continue }
-            dataFinala = best
-          } else {
-            // Intretinere flexibila: se amana in alta saptamana lucratoare
-            skipped++; continue
           }
+          if (!dataFinala) { skipped++; continue }
         }
       }
 
       if (slot[dataFinala] !== undefined) slot[dataFinala]++
+      if (!programateViitor[nr]) programateViitor[nr] = []
+      programateViitor[nr].push(dataFinala)
       deProgramat.push({
         data_programata: dataFinala,
-        nr_apt: item.apt.nr,
+        nr_apt: nr,
         tip_apt: item.apt.tip || 'simplu',
         firma: item.apt.firma || '',
         tip_curatenie: 'intretinere',
