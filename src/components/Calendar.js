@@ -3,7 +3,12 @@ import React, { useMemo, useState } from 'react'
 const LUNI = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie']
 const ZS = ['Du','Lu','Ma','Mi','Jo','Vi','Sa']
 
-export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMonth, onCellClick, onAddMulti, onAddUnic, onAutoSchedule, onStergeCuratenii, onStergeSaptamanaViitoare, onMutaCuratenie }) {
+export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMonth, onCellClick, onAddMulti, onAddUnic, onAutoSchedule, onStergeCuratenii, onStergeSaptamanaViitoare, onMutaCuratenie, esteLucratoare, onToggleZi }) {
+  // Data (YYYY-MM-DD) pentru o zi din luna afisata
+  const dataZi = (z) => `${calAn}-${String(calLuna+1).padStart(2,'0')}-${String(z).padStart(2,'0')}`
+  // E ziua nelucratoare? Foloseste setarile (weekend + sarbatori + override) daca exista,
+  // altfel cade pe weekend-ul calendaristic.
+  const esteNelucr = (z) => esteLucratoare ? !esteLucratoare(dataZi(z)) : (new Date(calAn,calLuna,z).getDay()%6===0)
   const [modStergere, setModStergere] = useState(false)
   const [selectate, setSelectate] = useState([]) // [{id, nr_apt, zi}]
   const [dragItem, setDragItem] = useState(null) // curatenia trasa
@@ -128,7 +133,7 @@ export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMont
             {lbl}
           </div>
         ))}
-        {!modStergere && <div style={{ fontSize: 10, color: '#aaa' }}>Click celulă = adaugă/șterge</div>}
+        {!modStergere && <div style={{ fontSize: 10, color: '#aaa' }}>Click celulă = adaugă/șterge · trage o curățenie = mută · click pe zi (sus) = lucrătoare/liberă</div>}
         {modStergere && (
           <div style={{ fontSize: 11, background:'#FDECEA', padding:'2px 8px', borderRadius:6, color:'#c0392b', border:'1px solid #F5A0A0' }}>
             {selectate.length > 0 ? `${selectate.length} selectate` : 'Nicio selecție'}
@@ -143,8 +148,16 @@ export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMont
               <th className="ca">AP \ Data</th>
               {Array.from({ length: zile }, (_, i) => i+1).map(z => {
                 const dow = new Date(calAn, calLuna, z).getDay()
+                const nelucr = esteNelucr(z)
+                const esteWe = weekends.has(z)
                 return (
-                  <th key={z} className={weekends.has(z) ? 'we' : ''}>
+                  <th key={z} className={nelucr ? 'we' : ''}
+                    onClick={() => onToggleZi && onToggleZi(dataZi(z))}
+                    title={onToggleZi ? (nelucr ? 'Liberă — click ca să devină lucrătoare' : 'Lucrătoare — click ca să devină liberă') : undefined}
+                    style={{
+                      cursor: onToggleZi ? 'pointer' : 'default',
+                      background: !nelucr && esteWe ? '#E2EFDA' : undefined
+                    }}>
                     {String(z).padStart(2,'0')}<br />
                     <span style={{ fontSize: 8, opacity: .7 }}>{ZS[dow]}</span>
                   </th>
@@ -163,7 +176,7 @@ export default function Calendar({ apts, curatenii, calAn, calLuna, onChangeMont
                   </td>
                   {Array.from({ length: zile }, (_, i) => i+1).map(z => {
                     const c = calMap[apt.nr]?.[z]
-                    const isWe = weekends.has(z)
+                    const isWe = esteNelucr(z)
                     const isToday = z === todayZi
                     const dataStr = `${calAn}-${String(calLuna+1).padStart(2,'0')}-${String(z).padStart(2,'0')}`
                     const esteSelectata = modStergere && isSelectata(apt.nr, z)

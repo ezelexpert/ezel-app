@@ -17,6 +17,7 @@ import SalariiTab from './SalariiTab'
 import PontajTab from './PontajTab'
 import { checkSiRuleazaJoi, genereazaSaptamana, programeazaIntermediara } from '../lib/autoScheduler'
 import ZileLucratoarePanel from '../components/ZileLucratoarePanel'
+import { getSetariZile, salveazaSetariZile, isZiLucratoare } from '../lib/zileLucratoare'
 import DashboardTab from './DashboardTab'
 import SetariPage from './SetariPage'
 import RezervariPage from './RezervariPage'
@@ -132,6 +133,7 @@ function AdminPageInner() {
   const [modal, setModal] = useState(null)
   const [editData, setEditData] = useState({})
   const [schedulerMsg, setSchedulerMsg] = useState(null)
+  const [setariZile, setSetariZile] = useState({ weekend: false, override: {} })
   const [openDropdown, setOpenDropdown] = useState(null)
   const [saving, setSaving] = useState(false)
   const [cereriNotif, setCereriNotif] = useState([])
@@ -218,6 +220,29 @@ function AdminPageInner() {
       }).catch(e => console.error('Scheduler error:', e))
     })
   }, [loadAll]) // eslint-disable-line
+
+  // Incarca setarile de zile lucratoare (weekend + override per zi) pentru calendar
+  useEffect(() => {
+    getSetariZile(true).then(s => setSetariZile({ weekend: !!s.weekend, override: { ...(s.override || {}) } }))
+  }, [])
+
+  // Comuta o zi anume lucratoare <-> libera (override din calendar)
+  async function toggleZiLucratoare(dataStr) {
+    const lucr = isZiLucratoare(dataStr, setariZile)
+    const nextOverride = { ...(setariZile.override || {}) }
+    if (Object.prototype.hasOwnProperty.call(nextOverride, dataStr)) {
+      delete nextOverride[dataStr] // exista override -> revine la implicit
+    } else {
+      nextOverride[dataStr] = !lucr // adauga override opus valorii implicite
+    }
+    const next = { ...setariZile, override: nextOverride }
+    try {
+      await salveazaSetariZile(next)
+      setSetariZile(next)
+    } catch (e) {
+      toast.error('Nu am putut salva ziua: ' + e.message)
+    }
+  }
 
   function handleLogout() { logout(); navigate('/', { replace: true }) }
 
@@ -733,6 +758,8 @@ function AdminPageInner() {
           <>
           <ZileLucratoarePanel />
           <Calendar apts={apts} curatenii={curatenii} calAn={calAn} calLuna={calLuna}
+            esteLucratoare={(dataStr) => isZiLucratoare(dataStr, setariZile)}
+            onToggleZi={toggleZiLucratoare}
             onChangeMonth={(d) => { let l = calLuna+d, a = calAn; if(l>11){l=0;a++}if(l<0){l=11;a--}; setCalLuna(l); setCalAn(a) }}
             onCellClick={(nr, zi, data) => {
               const cell = curatenii.find(c => c.nr_apt===nr && c.data_programata===data && c.status_curatenie!=='finalizata')
