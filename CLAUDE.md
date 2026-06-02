@@ -18,7 +18,7 @@ Aplicație web internă pentru **EZEL EXPERT SRL**, firmă care administrează a
 
 - **Frontend:** Create React App (`react-scripts`), **JavaScript simplu** (.js cu JSX), **NU TypeScript**. Stiluri **inline** (nu Tailwind). Paletă: navy `#1F3864`, accente pe stări.
 - **Backend/DB:** **Supabase** (PostgreSQL + Storage + Auth custom pe bcrypt prin funcții RPC).
-- **Deploy:** **Vercel**, build automat la fiecare push. Branch-ul de lucru/producție pentru sandbox: **`v2`**.
+- **Deploy:** **Vercel**, build automat la fiecare push. Branch-ul de lucru/producție: **`main`**.
 - **Routing:** react-router. Rutele cer rol: `/admin` (admin), `/curatenie` (curatenie), `/lenjerii` (lenjerii).
 
 ### Fișiere cheie
@@ -31,7 +31,7 @@ Aplicație web internă pentru **EZEL EXPERT SRL**, firmă care administrează a
 
 ## 3. ⚠️ REGULI CRITICE (gotchas — citește înainte de orice modificare)
 
-1. **NU rescrie `src/lib/supabase.js` integral.** Pe `v2`, URL-ul Supabase și cheia anon sunt **scrise direct în fișier (hardcodate)**. O înlocuire completă a fișierului le-ar șterge și ar pica aplicația. Dacă ai nevoie de o funcție nouă de date, **adaug-o punctual** sau importă `supabase` în componentă (`import { supabase } from '../lib/supabase'`) — nu regenera fișierul.
+1. **NU rescrie `src/lib/supabase.js` integral.** Pe `main`, URL-ul Supabase și cheia anon sunt **scrise direct în fișier (hardcodate)**. O înlocuire completă a fișierului le-ar șterge și ar pica aplicația. Dacă ai nevoie de o funcție nouă de date, **adaug-o punctual** sau importă `supabase` în componentă (`import { supabase } from '../lib/supabase'`) — nu regenera fișierul.
 
 2. **Tabela `utilizatori` e blocată pentru scriere directă** (RLS pornit, fără politică — ca să fie protejate parolele). Orice modificare de utilizator se face prin **funcții RPC** (`add_user`, `admin_update_user`, `admin_delete_user`, `admin_set_password`, `change_password`), nu prin `from('utilizatori').update/insert/delete`.
 
@@ -154,7 +154,7 @@ Aplicație web internă pentru **EZEL EXPERT SRL**, firmă care administrează a
 ## 8. Convenții de cod & workflow
 - Limba aplicației: **română** (texte UI în română, cu diacritice).
 - Mesaje către utilizator: scurte, clare, pe înțelesul unui om non-tehnic.
-- Modificări pe branch **`v2`**; commit cu mesaj descriptiv.
+- Modificări pe branch **`main`**; commit cu mesaj descriptiv.
 - Pentru schimbări de schemă: livrează un **script SQL clar**, terminat cu `notify pgrst, 'reload schema';`, pe care îl rulează omul în Supabase.
 - Evită over-engineering; preferă soluții simple, robuste, ușor de testat. Verifică build-ul (esbuild) înainte de commit.
 - Recalculează valorile (totaluri, costuri) automat în UI; nu cere omului să facă lucruri pe care le poate face sistemul.
