@@ -208,10 +208,10 @@ export async function genereazaSaptamana() {
       // Daca urmatoarea e inainte de saptamana viitoare -> prima zi lucratoare a saptamanii
       if (urmatoarea < primaLucr) urmatoarea = primaLucr
 
-      // Verifica daca are deja curatenie programata in intervalul valid (7-14 zile)
+      // Verifica daca are deja curatenie programata in intervalul valid (7-10 zile, cadenta)
       const areInInterval = (programateViitor[apt.nr] || []).some(d => {
         const diff = diffZile(ultimaFacuta, parseDate(d))
-        return diff >= 7 && diff <= 14
+        return diff >= 7 && diff <= CADENTA_MAX
       })
       if (areInInterval) { skipped++; continue }
 
