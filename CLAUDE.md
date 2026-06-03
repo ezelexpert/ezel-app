@@ -155,6 +155,7 @@ Aplicație web internă pentru **EZEL EXPERT SRL**, firmă care administrează a
 - Limba aplicației: **română** (texte UI în română, cu diacritice).
 - Mesaje către utilizator: scurte, clare, pe înțelesul unui om non-tehnic.
 - Modificări pe branch **`main`**; commit cu mesaj descriptiv.
+- **Toate patch-urile (`.patch`) se livrează pentru folderul `patch/`** din repo (ex. se aplică cu `git am patch/<nume>.patch`). Numele fișierelor **fără liniuțe** (descărcarea le elimină). Folderul `patch/` e în `.gitignore`.
 - Pentru schimbări de schemă: livrează un **script SQL clar**, terminat cu `notify pgrst, 'reload schema';`, pe care îl rulează omul în Supabase.
 - Evită over-engineering; preferă soluții simple, robuste, ușor de testat. Verifică build-ul (esbuild) înainte de commit.
 - Recalculează valorile (totaluri, costuri) automat în UI; nu cere omului să facă lucruri pe care le poate face sistemul.
