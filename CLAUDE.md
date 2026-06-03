@@ -121,6 +121,9 @@ Aplicație web internă pentru **EZEL EXPERT SRL**, firmă care administrează a
 - `lenjerii` — doar aplicația de lenjerii.
 - `financiar` — facturi & rapoarte.
 - `proprietar` — doar proprietățile sale (viitor).
+- `handyman` — aplicația de mentenanță (clock-in/out flexibil, fără aprobare; nu vede lucrările până nu dă clock-in).
+
+> **REGULĂ: toate rolurile apar pe pagina de login** (ecranul de selectare rol). Când adaugi un rol nou, adaugă-i OBLIGATORIU: butonul pe `LoginPage` + redirect-ul pe rol, ruta în `App.js`, opțiunea în `SetariPage` (ROLURI), și permite-l în funcțiile DB `add_user` / `admin_update_user`.
 
 > Obiectiv viitor: fiecare **manager** primește **raportul din sectorul lui**.
 
