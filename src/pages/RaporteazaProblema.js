@@ -8,6 +8,7 @@ const NAVY = '#1F3864'
 // Accesată prin cod QR: /raporteaza/:nrApt
 export default function RaporteazaProblema() {
   const { nrApt } = useParams()
+  const [nrAptInput, setNrAptInput] = useState(nrApt || '')
   const [descriere, setDescriere] = useState('')
   const [contact, setContact] = useState('')
   const [foto, setFoto] = useState(null)
@@ -16,13 +17,14 @@ export default function RaporteazaProblema() {
   const [eroare, setEroare] = useState('')
 
   async function trimite() {
+    if (!nrAptInput.trim()) { setEroare('Te rugăm scrie numărul apartamentului.'); return }
     if (!descriere.trim()) { setEroare('Te rugăm descrie problema.'); return }
     setSaving(true); setEroare('')
     try {
       const desc = contact.trim()
         ? `${descriere.trim()}\n\n📞 Contact: ${contact.trim()}`
         : descriere.trim()
-      await adaugaMentenanta({ nr_apt: nrApt || '?', descriere: desc, sursa: 'client' }, foto)
+      await adaugaMentenanta({ nr_apt: nrAptInput.trim(), descriere: desc, sursa: 'client' }, foto)
       setTrimis(true)
     } catch (e) {
       setEroare('A apărut o eroare. Mai încearcă o dată.')
@@ -53,10 +55,12 @@ export default function RaporteazaProblema() {
         <div style={{ textAlign: 'center', marginBottom: 16 }}>
           <div style={{ fontWeight: 800, color: NAVY, fontSize: 20 }}>EZEL</div>
           <div style={{ fontSize: 13, color: '#64748B', marginTop: 2 }}>Raportează o problemă</div>
-          <div style={{ display: 'inline-block', marginTop: 8, background: '#EBF1FB', color: NAVY, fontWeight: 700, fontSize: 14, padding: '4px 12px', borderRadius: 99 }}>
-            Apartament {nrApt || '—'}
-          </div>
         </div>
+
+        <label style={{ fontSize: 13, fontWeight: 600, color: NAVY, display: 'block', marginBottom: 6 }}>Numărul apartamentului</label>
+        <input value={nrAptInput} onChange={e => setNrAptInput(e.target.value)}
+          placeholder="ex: 12"
+          style={{ width: '100%', boxSizing: 'border-box', borderRadius: 10, border: '1px solid #CBD5E1', padding: '10px 12px', fontSize: 15, marginBottom: 14 }} />
 
         <label style={{ fontSize: 13, fontWeight: 600, color: NAVY, display: 'block', marginBottom: 6 }}>Ce problemă ai?</label>
         <textarea value={descriere} onChange={e => setDescriere(e.target.value)}

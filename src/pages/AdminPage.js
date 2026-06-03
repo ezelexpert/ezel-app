@@ -1078,7 +1078,7 @@ function AdminPageInner() {
 
         {tab === 5 && <StatisticiPage />}
         {tab === 6 && <MentenantaTab />}
-        {tab === 14 && <CoduriQR apts={apts} />}
+        {tab === 14 && <CoduriQR />}
         {tab === 7 && <AmanariTab onRefreshCal={loadAll} />}
         {tab === 8 && <SpalatoriePage />}
         {tab === 9 && <SalariiTab />}
