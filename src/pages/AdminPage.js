@@ -17,6 +17,7 @@ import SalariiTab from './SalariiTab'
 import PontajTab from './PontajTab'
 import { checkSiRuleazaJoi, genereazaSaptamana, programeazaIntermediara } from '../lib/autoScheduler'
 import ZileLucratoarePanel from '../components/ZileLucratoarePanel'
+import NotificarePrelungire from '../components/NotificarePrelungire'
 import { getSetariZile, salveazaSetariZile, isZiLucratoare } from '../lib/zileLucratoare'
 import DashboardTab from './DashboardTab'
 import SetariPage from './SetariPage'
@@ -632,6 +633,8 @@ function AdminPageInner() {
 
   return (
     <div>
+      {/* Notificare float - rezervari deschise de prelungit (curatenii expira) */}
+      <NotificarePrelungire />
       {/* Notificare float - cereri de pontaj */}
       {cereriNotif.length > 0 && !notifInchis && tab !== 10 && (
         <div style={{ position:'fixed', right:16, bottom:16, zIndex:400, width:300, maxWidth:'calc(100vw - 32px)', background:'#fff', border:'1.5px solid #F0C040', borderRadius:12, boxShadow:'0 8px 30px rgba(0,0,0,.18)', overflow:'hidden' }}>
