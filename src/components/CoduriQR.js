@@ -57,15 +57,26 @@ export default function CoduriQR() {
 
   return (
     <div>
-      {/* Reguli de print: ascunde tot in afara de poster, ca sa iasa curat */}
+      {/* Reguli de print: poster pe toata foaia A4, fara margini/scris de browser */}
       <style>{`
         @media print {
+          @page { size: A4; margin: 0; }
+          html, body { margin: 0 !important; padding: 0 !important; }
           body * { visibility: hidden !important; }
           .qr-print-area, .qr-print-area * { visibility: visible !important; }
           .qr-print-area {
-            position: absolute !important; top: 12mm; left: 0; right: 0;
-            margin: 0 auto !important; box-shadow: none !important; border: 1px solid #ccc !important;
+            position: absolute !important; top: 0 !important; left: 0 !important;
+            width: 210mm !important; height: 297mm !important; max-width: none !important;
+            margin: 0 !important; padding: 18mm !important; box-sizing: border-box !important;
+            border: none !important; border-radius: 0 !important; box-shadow: none !important;
+            display: flex !important; flex-direction: column;
+            align-items: center; justify-content: center; gap: 6mm;
           }
+          .qr-print-area .qrp-title { font-size: 64px !important; }
+          .qr-print-area .qrp-sub   { font-size: 40px !important; margin-top: 0 !important; }
+          .qr-print-area .qrp-loc   { font-size: 34px !important; padding: 10px 28px !important; margin: 0 !important; }
+          .qr-print-area .qrp-instr { font-size: 22px !important; margin: 0 !important; max-width: 150mm; }
+          .qr-print-area .qrp-img   { width: 120mm !important; height: 120mm !important; }
           .qr-no-print { display: none !important; }
         }
       `}</style>
@@ -90,15 +101,15 @@ export default function CoduriQR() {
       {/* Posterul codului selectat */}
       {selectat && (
         <div className="qr-print-area" style={{ maxWidth: 460, margin: '0 auto 18px', background: '#fff', border: '2px solid #E9EDF4', borderRadius: 16, padding: 28, textAlign: 'center', boxShadow: '0 2px 10px rgba(15,35,68,.08)' }}>
-          <div style={{ fontWeight: 800, color: NAVY, fontSize: 24, letterSpacing: 1 }}>EZEL</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: NAVY, marginTop: 10 }}>Ai o problemă?</div>
-          <div style={{ display: 'inline-block', background: '#EBF1FB', color: NAVY, fontWeight: 700, fontSize: 16, padding: '4px 14px', borderRadius: 99, margin: '8px 0' }}>
+          <div className="qrp-title" style={{ fontWeight: 800, color: NAVY, fontSize: 24, letterSpacing: 1 }}>EZEL</div>
+          <div className="qrp-sub" style={{ fontSize: 18, fontWeight: 700, color: NAVY, marginTop: 10 }}>Ai o problemă?</div>
+          <div className="qrp-loc" style={{ display: 'inline-block', background: '#EBF1FB', color: NAVY, fontWeight: 700, fontSize: 16, padding: '4px 14px', borderRadius: 99, margin: '8px 0' }}>
             📍 {selectat}
           </div>
-          <div style={{ fontSize: 14, color: '#475569', margin: '4px 0 16px' }}>
+          <div className="qrp-instr" style={{ fontSize: 14, color: '#475569', margin: '4px 0 16px' }}>
             Scanează codul cu telefonul și descrie problema (poți adăuga și o poză).
           </div>
-          <img src={qrSrc(origin, selectat)} alt={`Cod QR ${selectat}`} width={260} height={260}
+          <img className="qrp-img" src={qrSrc(origin, selectat)} alt={`Cod QR ${selectat}`} width={260} height={260}
             style={{ width: 260, height: 260, margin: '0 auto', display: 'block' }} />
           <button className="btn btn-p qr-no-print" style={{ marginTop: 14 }} onClick={() => window.print()}>🖨 Printează</button>
         </div>
