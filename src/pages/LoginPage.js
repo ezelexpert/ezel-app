@@ -43,7 +43,9 @@ export default function LoginPage() {
     }
     setLoadingUseri(true)
     getUtilizatori().then(useri => {
-      const roluri = tip === 'admin' ? ['admin'] : ['curatenie', 'lenjerii', 'handyman']
+      const roluri = tip === 'admin' ? ['admin']
+        : tip === 'handyman' ? ['handyman']
+        : ['curatenie', 'lenjerii']
       const filtrati = useri.filter(u => roluri.includes(u.rol))
       setUtilizatori(filtrati)
       if (filtrati.length === 1) setSelectedUser(String(filtrati[0].id))
@@ -118,6 +120,14 @@ export default function LoginPage() {
                   <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>Curățenii, spălătorie, lenjerii</div>
                 </div>
               </button>
+              <button onClick={() => setTip('handyman')}
+                style={{ padding: '16px', borderRadius: 12, border: '1.5px solid #F0C040', background: '#FEF3C7', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 10, background: '#92400E', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>🔧</div>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#92400E' }}>Handyman</div>
+                  <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>Mentenanță, lucrări</div>
+                </div>
+              </button>
             </div>
           </div>
         ) : (
@@ -128,10 +138,10 @@ export default function LoginPage() {
               style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#888', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 4 }}>
               ← Înapoi
             </button>
-            <div style={{ background: tip === 'admin' ? '#EBF1FB' : '#E2EFDA', borderRadius: 10, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 20 }}>{tip === 'admin' ? '👔' : '🧹'}</span>
-              <div style={{ fontSize: 13, fontWeight: 600, color: tip === 'admin' ? '#1F3864' : '#375623' }}>
-                {tip === 'admin' ? 'Manager' : 'Curățenie & Lenjerii'}
+            <div style={{ background: tip === 'admin' ? '#EBF1FB' : tip === 'handyman' ? '#FEF3C7' : '#E2EFDA', borderRadius: 10, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 20 }}>{tip === 'admin' ? '👔' : tip === 'handyman' ? '🔧' : '🧹'}</span>
+              <div style={{ fontSize: 13, fontWeight: 600, color: tip === 'admin' ? '#1F3864' : tip === 'handyman' ? '#92400E' : '#375623' }}>
+                {tip === 'admin' ? 'Manager' : tip === 'handyman' ? 'Handyman' : 'Curățenie & Lenjerii'}
               </div>
             </div>
 
