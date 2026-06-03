@@ -28,6 +28,7 @@ export default function LoginPage() {
       navigate(
         s.role === 'admin' ? '/admin'
         : s.role === 'lenjerii' ? '/lenjerii'
+        : s.role === 'handyman' ? '/handyman'
         : '/curatenie',
         { replace: true }
       )
@@ -42,7 +43,7 @@ export default function LoginPage() {
     }
     setLoadingUseri(true)
     getUtilizatori().then(useri => {
-      const roluri = tip === 'admin' ? ['admin'] : ['curatenie', 'lenjerii']
+      const roluri = tip === 'admin' ? ['admin'] : ['curatenie', 'lenjerii', 'handyman']
       const filtrati = useri.filter(u => roluri.includes(u.rol))
       setUtilizatori(filtrati)
       if (filtrati.length === 1) setSelectedUser(String(filtrati[0].id))
@@ -74,6 +75,7 @@ export default function LoginPage() {
     navigate(
       result.user.rol === 'admin' ? '/admin'
       : result.user.rol === 'lenjerii' ? '/lenjerii'
+      : result.user.rol === 'handyman' ? '/handyman'
       : '/curatenie',
       { replace: true }
     )

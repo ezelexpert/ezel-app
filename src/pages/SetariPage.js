@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { adaugaUtilizator, reseteazaParola } from '../lib/auth'
 
-const ROLURI = ['admin', 'curatenie', 'lenjerii']
-const ROL_LABELS = { admin: '👔 Manager', curatenie: '🧹 Curățenie', lenjerii: '🧺 Lenjerii' }
-const ROL_COLORS = { admin: '#EEF4FF', curatenie: '#E8F7EF', lenjerii: '#EDE9FE' }
-const ROL_TEXT = { admin: '#1A3A6B', curatenie: '#1A7A4A', lenjerii: '#5B21B6' }
+const ROLURI = ['admin', 'curatenie', 'lenjerii', 'handyman']
+const ROL_LABELS = { admin: '👔 Manager', curatenie: '🧹 Curățenie', lenjerii: '🧺 Lenjerii', handyman: '🔧 Handyman' }
+const ROL_COLORS = { admin: '#EEF4FF', curatenie: '#E8F7EF', lenjerii: '#EDE9FE', handyman: '#FEF3C7' }
+const ROL_TEXT = { admin: '#1A3A6B', curatenie: '#1A7A4A', lenjerii: '#5B21B6', handyman: '#92400E' }
 
 const TEME = [
   { nume: 'Navy', primary: '#0F2344', accent: '#1A7A4A', bg: '#F6F7F9' },
