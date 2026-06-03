@@ -57,10 +57,20 @@ export default function RaporteazaProblema() {
           <div style={{ fontSize: 13, color: '#64748B', marginTop: 2 }}>Raportează o problemă</div>
         </div>
 
-        <label style={{ fontSize: 13, fontWeight: 600, color: NAVY, display: 'block', marginBottom: 6 }}>Numărul apartamentului</label>
-        <input value={nrAptInput} onChange={e => setNrAptInput(e.target.value)}
-          placeholder="ex: 12"
-          style={{ width: '100%', boxSizing: 'border-box', borderRadius: 10, border: '1px solid #CBD5E1', padding: '10px 12px', fontSize: 15, marginBottom: 14 }} />
+        {nrApt ? (
+          <div style={{ textAlign: 'center', marginBottom: 14 }}>
+            <span style={{ display: 'inline-block', background: '#EBF1FB', color: NAVY, fontWeight: 700, fontSize: 15, padding: '6px 14px', borderRadius: 99 }}>
+              📍 {decodeURIComponent(nrApt)}
+            </span>
+          </div>
+        ) : (
+          <>
+            <label style={{ fontSize: 13, fontWeight: 600, color: NAVY, display: 'block', marginBottom: 6 }}>Apartament / locație</label>
+            <input value={nrAptInput} onChange={e => setNrAptInput(e.target.value)}
+              placeholder="ex: 12"
+              style={{ width: '100%', boxSizing: 'border-box', borderRadius: 10, border: '1px solid #CBD5E1', padding: '10px 12px', fontSize: 15, marginBottom: 14 }} />
+          </>
+        )}
 
         <label style={{ fontSize: 13, fontWeight: 600, color: NAVY, display: 'block', marginBottom: 6 }}>Ce problemă ai?</label>
         <textarea value={descriere} onChange={e => setDescriere(e.target.value)}
