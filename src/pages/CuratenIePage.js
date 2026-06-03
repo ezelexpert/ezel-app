@@ -660,6 +660,36 @@ export default function CuratenIePage() {
   const areVoieSaVadaCuratenii = user?.rol === 'admin' || esteIntrată
   const esteIesita = !!pontajAzi?.ora_iesire
 
+  // ── Ecran de pontaj curat pentru angajate (același stil ca la handyman) ──
+  if (user?.rol !== 'admin' && !loading) {
+    const wrapG = { minHeight:'100vh', background:'#F1F5F9', fontFamily:'system-ui, sans-serif', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:20, textAlign:'center' }
+    if (!pontajAzi?.ora_intrare) {
+      return (
+        <div style={wrapG}>
+          <div style={{ fontWeight:800, color:'#375623', fontSize:26 }}>EZEL</div>
+          <div style={{ fontSize:15, color:'#64748B', margin:'6px 0 28px' }}>Salut, {nume}! 👋</div>
+          <div style={{ fontSize:16, color:'#475569', marginBottom:18, maxWidth:320 }}>Pontează-te ca să vezi curățeniile de azi.</div>
+          <button onClick={clockIn} disabled={clockLoading}
+            style={{ padding:'18px 44px', borderRadius:14, border:'none', cursor:'pointer', background:'#375623', color:'#fff', fontWeight:800, fontSize:20 }}>
+            {clockLoading ? '...' : '▶ Clock In'}
+          </button>
+          <div style={{ fontSize:12, color:'#94A3B8', marginTop:16 }}>Interval pontare: {String(INTERVAL_CLOCK_IN.startH).padStart(2,'0')}:{String(INTERVAL_CLOCK_IN.startM).padStart(2,'0')} — {String(INTERVAL_CLOCK_IN.endH).padStart(2,'0')}:{String(INTERVAL_CLOCK_IN.endM).padStart(2,'0')}</div>
+          <button onClick={handleLogout} style={{ marginTop:24, background:'none', border:'none', color:'#94A3B8', cursor:'pointer', fontSize:13 }}>Ieși din cont</button>
+        </div>
+      )
+    }
+    if (esteIesita) {
+      return (
+        <div style={wrapG}>
+          <div style={{ fontSize:44 }}>✅</div>
+          <div style={{ fontWeight:800, color:'#375623', fontSize:22, margin:'8px 0' }}>Ziua încheiată</div>
+          <div style={{ color:'#475569', fontSize:15 }}>Clock In: {formatOra(pontajAzi.ora_intrare)} · Clock Out: {formatOra(pontajAzi.ora_iesire)}</div>
+          <button onClick={handleLogout} style={{ marginTop:24, background:'none', border:'none', color:'#94A3B8', cursor:'pointer', fontSize:13 }}>Ieși din cont</button>
+        </div>
+      )
+    }
+  }
+
   return (
     <div>
       {/* Header */}
