@@ -255,10 +255,10 @@ export async function adaugaMentenanta(obj, fotografie) {
   }
   const { error } = await supabase.from('mentenanta').insert({
     nr_apt: obj.nr_apt, firma: obj.firma || '',
-    descriere: obj.descriere, foto_url, status: 'nou'
+    descriere: obj.descriere, foto_url, status: 'nou', sursa: obj.sursa || 'intern'
   })
   if (error) throw error
-  await addLog('curatenie', 'Mentenanta raportata', obj.nr_apt, obj.descriere)
+  await addLog(obj.sursa === 'client' ? 'client' : 'curatenie', 'Mentenanta raportata', obj.nr_apt, obj.descriere)
 }
 
 export async function updateStatusMentenanta(id, status) {

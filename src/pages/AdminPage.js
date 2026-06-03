@@ -18,6 +18,8 @@ import PontajTab from './PontajTab'
 import { checkSiRuleazaJoi, genereazaSaptamana, programeazaIntermediara } from '../lib/autoScheduler'
 import ZileLucratoarePanel from '../components/ZileLucratoarePanel'
 import NotificarePrelungire from '../components/NotificarePrelungire'
+import NotificareMentenanta from '../components/NotificareMentenanta'
+import CoduriQR from '../components/CoduriQR'
 import { getSetariZile, salveazaSetariZile, isZiLucratoare } from '../lib/zileLucratoare'
 import DashboardTab from './DashboardTab'
 import SetariPage from './SetariPage'
@@ -93,6 +95,7 @@ const NAV_GROUPS = [
       { label: '📊 Statistici', tab: 5 },
       { label: '🧺 Spălătorie', tab: 8 },
       { label: '🔧 Mentenanță', tab: 6 },
+      { label: '📱 Coduri QR', tab: 14 },
       { label: '📅 Amânări', tab: 7 },
     ]
   },
@@ -635,6 +638,8 @@ function AdminPageInner() {
     <div>
       {/* Notificare float - rezervari deschise de prelungit (curatenii expira) */}
       <NotificarePrelungire />
+      {/* Notificare float - probleme noi raportate de clienti (cod QR) */}
+      <NotificareMentenanta onDeschide={() => setTab(6)} />
       {/* Notificare float - cereri de pontaj */}
       {cereriNotif.length > 0 && !notifInchis && tab !== 10 && (
         <div style={{ position:'fixed', right:16, bottom:16, zIndex:400, width:300, maxWidth:'calc(100vw - 32px)', background:'#fff', border:'1.5px solid #F0C040', borderRadius:12, boxShadow:'0 8px 30px rgba(0,0,0,.18)', overflow:'hidden' }}>
@@ -1073,6 +1078,7 @@ function AdminPageInner() {
 
         {tab === 5 && <StatisticiPage />}
         {tab === 6 && <MentenantaTab />}
+        {tab === 14 && <CoduriQR apts={apts} />}
         {tab === 7 && <AmanariTab onRefreshCal={loadAll} />}
         {tab === 8 && <SpalatoriePage />}
         {tab === 9 && <SalariiTab />}

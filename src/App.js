@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage'
 import AdminPage from './pages/AdminPage'
 import CuratenIePage from './pages/CuratenIePage'
 import LenjeriiPage from './pages/LenjeriiPage'
+import RaporteazaProblema from './pages/RaporteazaProblema'
 
 function PrivateRoute({ element, requiredRole }) {
   const session = getSession()
@@ -18,6 +19,9 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LoginPage />} />
+        {/* Pagina publica pentru clienti (cod QR) - fara login */}
+        <Route path="/raporteaza/:nrApt" element={<RaporteazaProblema />} />
+        <Route path="/raporteaza" element={<RaporteazaProblema />} />
         <Route path="/admin" element={<PrivateRoute element={<AdminPage />} requiredRole="admin" />} />
         <Route path="/curatenie" element={<PrivateRoute element={<CuratenIePage />} requiredRole="curatenie" />} />
         <Route path="/lenjerii" element={<PrivateRoute element={<LenjeriiPage />} requiredRole="lenjerii" />} />
