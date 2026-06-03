@@ -31,6 +31,18 @@ function normalizeData(d) {
   return s
 }
 
+// Pentru chirie: data de eliberare = check-in + N luni
+function calcElibChirie(checkinVal, luni) {
+  const ci = normalizeData(checkinVal || '')
+  const n = parseInt(luni)
+  if (!ci || !n || n <= 0) return ''
+  const d = new Date(ci + 'T12:00:00')
+  if (isNaN(d)) return ''
+  d.setMonth(d.getMonth() + n)
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+}
+
+
 const LUNI = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie']
 const LUNI_SC = ['Ian','Feb','Mar','Apr','Mai','Iun','Iul','Aug','Sep','Oct','Nov','Dec']
 const ZI_SC = ['Du','Lu','Ma','Mi','Jo','Vi','Sa']
@@ -71,6 +83,7 @@ function ModalRezervare({ apt, seg, apts, curatenii, onClose, onSave, onContract
     status_plata: editRez?.status_plata || 'neplatit',
     observatii: editRez?.observatii || '',
     sursa: editRez?.sursa || 'telefon',
+    nr_luni: '',
   })
   const [saving, setSaving] = useState(false)
   const [eroare, setEroare] = useState('')
@@ -313,14 +326,30 @@ function ModalRezervare({ apt, seg, apts, curatenii, onClose, onSave, onContract
               <div className="fg">
                 <label className="fl">Data check-in</label>
                 <input className="fi" value={form.data_checkin}
-                  onChange={e=>setForm(p=>({...p,data_checkin:e.target.value}))}
+                  onChange={e=>setForm(p=>{
+                    const next={...p,data_checkin:e.target.value}
+                    if(p.tip_serviciu==='chirie'&&p.nr_luni){ next.data_elib=calcElibChirie(e.target.value,p.nr_luni) }
+                    return next
+                  })}
                   placeholder="ex: 01.06" />
               </div>
               <div className="fg">
-                <label className="fl">Data eliberare</label>
-                <input className="fi" value={form.data_elib}
-                  onChange={e=>setForm(p=>({...p,data_elib:e.target.value}))}
-                  placeholder="ex: 30.06" />
+                {form.tip_serviciu==='chirie' ? (
+                  <>
+                    <label className="fl">Câte luni?</label>
+                    <input type="number" min="1" className="fi" value={form.nr_luni}
+                      onChange={e=>setForm(p=>({...p,nr_luni:e.target.value,data_elib:calcElibChirie(p.data_checkin,e.target.value)}))}
+                      placeholder="ex: 6" />
+                    {form.data_elib && <div style={{fontSize:11,color:'#94A3B8',marginTop:4}}>Eliberare: {form.data_elib}</div>}
+                  </>
+                ) : (
+                  <>
+                    <label className="fl">Data eliberare</label>
+                    <input className="fi" value={form.data_elib}
+                      onChange={e=>setForm(p=>({...p,data_elib:e.target.value}))}
+                      placeholder="ex: 30.06" />
+                  </>
+                )}
               </div>
             </div>
 
