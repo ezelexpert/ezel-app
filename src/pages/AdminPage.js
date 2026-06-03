@@ -4,7 +4,7 @@ import { logout } from '../lib/auth'
 import {
   getApartamente, updateApartament, updateApartamenteMultiple, addApartament,
   getCuratenie, programeazaCuratenie, programeazaCuratenieMultipla, marcheazaStatus, stergeCuratenie,
-  getIstoric, adaugaIstoric, stergeIstoric, supabase
+  getIstoric, adaugaIstoric, stergeIstoric, supabase, activeazaRezervariScadente
 } from '../lib/supabase'
 import Calendar from '../components/Calendar'
 import Modal from '../components/Modal'
@@ -161,6 +161,8 @@ function AdminPageInner() {
   const loadAll = useCallback(async () => {
     setLoading(true)
     try {
+      // Activeaza rezervarile al caror check-in a sosit (trigger-ul DB sincronizeaza apartamentele)
+      await activeazaRezervariScadente()
       const [a, c, i] = await Promise.all([getApartamente(), getCuratenie(), getIstoric()])
       const aziStr = new Date().toISOString().split('T')[0]
       const in5Zile = new Date(); in5Zile.setDate(in5Zile.getDate() + 5)

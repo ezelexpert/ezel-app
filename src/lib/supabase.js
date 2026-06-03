@@ -337,3 +337,24 @@ export async function addLog(userTip, actiune, nrApt, detalii) {
     await supabase.from('log_actiuni').insert({ user_tip: userTip, actiune, nr_apt: nrApt, detalii })
   } catch(e) {}
 }
+
+// Trece automat rezervarile al caror check-in a sosit din 'rezervata' in 'activa'.
+// Se apeleaza la incarcarea aplicatiei. Apartamentul se sincronizeaza prin trigger-ul DB.
+// Returneaza numarul de rezervari activate.
+export async function activeazaRezervariScadente() {
+  try {
+    const azi = new Date().toISOString().split('T')[0]
+    const { data, error } = await supabase
+      .from('rezervari')
+      .update({ status: 'activa' })
+      .eq('status', 'rezervata')
+      .lte('data_checkin', azi)   // check-in a sosit (azi sau in trecut)
+      .gt('data_checkout', azi)    // si nu s-a terminat inca
+      .select('id, nr_apt')
+    if (error) { console.error('[activeazaRezervariScadente]', error); return 0 }
+    return data ? data.length : 0
+  } catch (e) {
+    console.error('[activeazaRezervariScadente]', e)
+    return 0
+  }
+}

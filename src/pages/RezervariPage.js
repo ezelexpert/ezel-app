@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, activeazaRezervariScadente } from '../lib/supabase'
 import { getNume } from '../lib/auth'
 
 // ── Utils ─────────────────────────────────────────────────────
@@ -652,9 +652,11 @@ export default function RezervariPage({
   const startDate = useMemo(() => new Date(calAn, calLuna, 1), [calAn, calLuna])
 
   useEffect(() => {
-    // Încarcă TOATE rezervările (active + rezervate + finalizate, dar fără anulate)
-    supabase.from('rezervari').select('*').neq('status','anulata').order('data_checkin', { ascending: false })
-      .then(({ data }) => { setRezervari(data||[]); setLoading(false) })
+    // Întâi activează rezervările al căror check-in a sosit, apoi încarcă-le pe toate
+    activeazaRezervariScadente().then(() => {
+      supabase.from('rezervari').select('*').neq('status','anulata').order('data_checkin', { ascending: false })
+        .then(({ data }) => { setRezervari(data||[]); setLoading(false) })
+    })
   }, [])
 
   // Reload rezervări (după save/delete)
