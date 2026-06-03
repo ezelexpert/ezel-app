@@ -57,6 +57,18 @@ export default function CoduriQR() {
 
   return (
     <div>
+      {/* Reguli de print: ascunde tot in afara de poster, ca sa iasa curat */}
+      <style>{`
+        @media print {
+          body * { visibility: hidden !important; }
+          .qr-print-area, .qr-print-area * { visibility: visible !important; }
+          .qr-print-area {
+            position: absolute !important; top: 12mm; left: 0; right: 0;
+            margin: 0 auto !important; box-shadow: none !important; border: 1px solid #ccc !important;
+          }
+          .qr-no-print { display: none !important; }
+        }
+      `}</style>
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontWeight: 700, color: NAVY, fontSize: 16 }}>📱 Coduri QR — raportare probleme</div>
         <div style={{ fontSize: 12, color: '#94A3B8' }}>
@@ -77,7 +89,7 @@ export default function CoduriQR() {
 
       {/* Posterul codului selectat */}
       {selectat && (
-        <div style={{ maxWidth: 460, margin: '0 auto 18px', background: '#fff', border: '2px solid #E9EDF4', borderRadius: 16, padding: 28, textAlign: 'center', boxShadow: '0 2px 10px rgba(15,35,68,.08)' }}>
+        <div className="qr-print-area" style={{ maxWidth: 460, margin: '0 auto 18px', background: '#fff', border: '2px solid #E9EDF4', borderRadius: 16, padding: 28, textAlign: 'center', boxShadow: '0 2px 10px rgba(15,35,68,.08)' }}>
           <div style={{ fontWeight: 800, color: NAVY, fontSize: 24, letterSpacing: 1 }}>EZEL</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: NAVY, marginTop: 10 }}>Ai o problemă?</div>
           <div style={{ display: 'inline-block', background: '#EBF1FB', color: NAVY, fontWeight: 700, fontSize: 16, padding: '4px 14px', borderRadius: 99, margin: '8px 0' }}>
@@ -88,7 +100,7 @@ export default function CoduriQR() {
           </div>
           <img src={qrSrc(origin, selectat)} alt={`Cod QR ${selectat}`} width={260} height={260}
             style={{ width: 260, height: 260, margin: '0 auto', display: 'block' }} />
-          <button className="btn btn-p" style={{ marginTop: 14 }} onClick={() => window.print()}>🖨 Printează</button>
+          <button className="btn btn-p qr-no-print" style={{ marginTop: 14 }} onClick={() => window.print()}>🖨 Printează</button>
         </div>
       )}
 
