@@ -113,10 +113,16 @@ export async function addApartament(apt) {
 
 // ── Curatenie ────────────────────────────────────────────────
 export async function getCuratenie() {
+  // Incarca doar o fereastra recenta (ultimele ~180 zile) + tot viitorul.
+  // Evita incarcarea intregii istorii (mai rapid + nu loveste limita de 1000 randuri).
+  const lim = new Date(); lim.setDate(lim.getDate() - 180)
+  const limStr = lim.getFullYear() + '-' + String(lim.getMonth() + 1).padStart(2, '0') + '-' + String(lim.getDate()).padStart(2, '0')
   const { data, error } = await supabase
     .from('curatenie')
     .select('*')
+    .gte('data_programata', limStr)
     .order('data_programata', { ascending: false })
+    .limit(5000)
   if (error) throw error
   return data
 }
