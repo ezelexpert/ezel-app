@@ -15,7 +15,7 @@ import IncasariTab from './IncasariTab'
 import SpalatoriePage from './SpalatoriePage'
 import SalariiTab from './SalariiTab'
 import PontajTab from './PontajTab'
-import { checkSiRuleazaJoi, genereazaSaptamana, programeazaIntermediara } from '../lib/autoScheduler'
+import { programeazaIntermediara } from '../lib/autoScheduler'
 import ZileLucratoarePanel from '../components/ZileLucratoarePanel'
 import NotificarePrelungire from '../components/NotificarePrelungire'
 import NotificareMentenanta from '../components/NotificareMentenanta'
@@ -136,7 +136,6 @@ function AdminPageInner() {
   const [calLuna, setCalLuna] = useState(now.getMonth())
   const [modal, setModal] = useState(null)
   const [editData, setEditData] = useState({})
-  const [schedulerMsg, setSchedulerMsg] = useState(null)
   const [setariZile, setSetariZile] = useState({ weekend: false, override: {} })
   const [openDropdown, setOpenDropdown] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -213,18 +212,9 @@ function AdminPageInner() {
   }, [])
 
   useEffect(() => {
-    // Incarca datele si ruleaza scheduler dupa
-    loadAll().then(() => {
-      checkSiRuleazaJoi().then(result => {
-        if (result && result.programate > 0) {
-          toast.success(`Auto-programat ${result.programate} curățenii pentru săptămâna viitoare!`)
-          setSchedulerMsg(`✅ Auto-programat ${result.programate} curățenii!`)
-          setTimeout(() => setSchedulerMsg(null), 8000)
-          // Reincarca curatenii (nu tot) - fara race condition
-          getCuratenie().then(c => setCuratenii(c))
-        }
-      }).catch(e => console.error('Scheduler error:', e))
-    })
+    // Curatenia se programeaza automat in baza de date (pe rezervare).
+    // Motorul JS de auto-planificare a fost dezactivat ca sa nu creeze conflicte.
+    loadAll()
   }, [loadAll]) // eslint-disable-line
 
   // Incarca setarile de zile lucratoare (weekend + override per zi) pentru calendar
@@ -745,13 +735,6 @@ function AdminPageInner() {
       <div className="page-content">
 
         {/* CALENDAR */}
-        {/* Scheduler notification */}
-        {schedulerMsg && (
-          <div style={{ background:'#F0F9E8', border:'1px solid #C8E6A0', borderRadius:16, padding:'10px 14px', marginBottom:12, display:'flex', alignItems:'center', gap:10, fontSize:13, color:'#375623', fontWeight:500 }}>
-            <span style={{ flex:1 }}>{schedulerMsg}</span>
-            <button onClick={() => setSchedulerMsg(null)} style={{ background:'none', border:'none', cursor:'pointer', fontSize:16, color:'#375623' }}>✕</button>
-          </div>
-        )}
 
         {tab === 11 && (
           <DashboardTab
@@ -777,19 +760,6 @@ function AdminPageInner() {
               setModal('cell')
             }}
             onAddMulti={() => { setEditData({ selApts: [], data_programata: new Date().toISOString().split('T')[0], tip_curatenie: 'intretinere' }); setModal('curMulti') }}
-            onAutoSchedule={async () => {
-              const ok = await new Promise(res => {
-                toast.confirm('Generezi automat curățeniile pentru săptămâna viitoare?', () => res(true))
-                setTimeout(() => res(false), 10000)
-              })
-              if (!ok) return
-              const r = await genereazaSaptamana()
-              const msg = r.programate > 0 ? `Programat ${r.programate} curățenii!` : 'Nimic de programat — toate sunt la zi'
-              r.programate > 0 ? toast.success(msg) : toast.info(msg)
-              setSchedulerMsg(r.programate > 0 ? `✅ ${msg}` : `⚠️ ${msg}`)
-              setTimeout(() => setSchedulerMsg(null), 6000)
-              getCuratenie().then(c => setCuratenii(c))
-            }}
             onStergeCuratenii={async (ids) => {
               for (const id of ids) await stergeCuratenie(id)
               const c = await getCuratenie(); setCuratenii(c)
@@ -841,16 +811,6 @@ function AdminPageInner() {
                 onClick={() => { setEditData({ data_programata: new Date().toISOString().split('T')[0], tip_curatenie:'intretinere' }); setModal('mcur') }}
                 disabled={selApts.size === 0}>
                 🧹 Curățenie {selApts.size > 0 ? `(${selApts.size})` : 'multiple'}
-              </button>
-              <button className="btn"
-                onClick={async () => {
-                  const ok = await new Promise(res => { toast.confirm('Generezi automat curățeniile pentru săptămâna viitoare?', () => res(true)); setTimeout(() => res(false), 10000) })
-                  if (!ok) return
-                  const r = await genereazaSaptamana()
-                  r.programate > 0 ? toast.success(`✓ Programat ${r.programate} curățenii!`) : toast.info('Nimic de programat — toate sunt la zi')
-                  getCuratenie().then(c => setCuratenii(c))
-                }}>
-                🤖 Auto-programare
               </button>
               {selApts.size > 0 && (
                 <button className="btn" style={{ background:'#FEE2E2', color:'#B91C1C', border:'1px solid #FECACA' }}
