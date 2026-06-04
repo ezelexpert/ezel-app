@@ -219,6 +219,10 @@ export async function genereazaSaptamana() {
       // Daca urmatoarea e inainte de saptamana viitoare -> prima zi lucratoare a saptamanii
       if (urmatoarea < primaLucr) urmatoarea = primaLucr
 
+      // NU programa intretinere dupa ce clientul pleaca (data eliberarii).
+      // Generala la check-out e deja pusa in STEP 1.
+      if (apt.data_elib && apt.data_elib >= aziStr && dateStr(urmatoarea) >= apt.data_elib) { skipped++; continue }
+
       // Verifica daca are deja curatenie programata in intervalul valid (7-10 zile, cadenta)
       const areInInterval = (programateViitor[apt.nr] || []).some(d => {
         const diff = diffZile(ultimaFacuta, parseDate(d))
