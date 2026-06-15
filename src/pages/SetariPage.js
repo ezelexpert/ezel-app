@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { adaugaUtilizator, reseteazaParola } from '../lib/auth'
 
-const ROLURI = ['admin', 'curatenie', 'lenjerii', 'handyman']
-const ROL_LABELS = { admin: '👔 Manager', curatenie: '🧹 Curățenie', lenjerii: '🧺 Lenjerii', handyman: '🔧 Handyman' }
-const ROL_COLORS = { admin: '#EEF4FF', curatenie: '#E8F7EF', lenjerii: '#EDE9FE', handyman: '#FEF3C7' }
-const ROL_TEXT = { admin: '#1A3A6B', curatenie: '#1A7A4A', lenjerii: '#5B21B6', handyman: '#92400E' }
+const ROLURI = ['admin', 'curatenie', 'lenjerii', 'handyman', 'client']
+const ROL_LABELS = { admin: '👔 Manager', curatenie: '🧹 Curățenie', lenjerii: '🧺 Lenjerii', handyman: '🔧 Handyman', client: '🏢 Client (firmă)' }
+const ROL_COLORS = { admin: '#EEF4FF', curatenie: '#E8F7EF', lenjerii: '#EDE9FE', handyman: '#FEF3C7', client: '#E0F2FE' }
+const ROL_TEXT = { admin: '#1A3A6B', curatenie: '#1A7A4A', lenjerii: '#5B21B6', handyman: '#92400E', client: '#075985' }
 
 const TEME = [
   { nume: 'Navy', primary: '#0F2344', accent: '#1A7A4A', bg: '#F6F7F9' },
@@ -150,7 +150,7 @@ export default function SetariPage() {
   const [utilizatori, setUtilizatori] = useState([])
   const [loadingUsers, setLoadingUsers] = useState(true)
   const [userModal, setUserModal] = useState(null)
-  const [userForm, setUserForm] = useState({ nume:'', parola:'', rol:'curatenie', activ:true })
+  const [userForm, setUserForm] = useState({ nume:'', parola:'', rol:'curatenie', activ:true, firma:'' })
   const [showParola, setShowParola] = useState({})
   const [saved, setSaved] = useState({})
   const [log, setLog] = useState([])
@@ -235,6 +235,10 @@ export default function SetariPage() {
         setUserError(result.error)
         return
       }
+      // Pentru rol client: leaga utilizatorul de firma lui
+      if (userForm.rol === 'client' && result.id) {
+        await supabase.rpc('admin_set_firma', { p_user_id: result.id, p_firma: (userForm.firma||'').trim() })
+      }
     } else {
       // Update nume / rol / activ (prin functie - tabela e blocata pentru scriere directa)
       const { error: updErr } = await supabase.rpc('admin_update_user', {
@@ -256,6 +260,10 @@ export default function SetariPage() {
           setUserError(result.error)
           return
         }
+      }
+      // Pentru rol client: actualizeaza firma
+      if (userForm.rol === 'client') {
+        await supabase.rpc('admin_set_firma', { p_user_id: userModal, p_firma: (userForm.firma||'').trim() })
       }
     }
     await loadUtilizatori(); setUserModal(null)
@@ -326,7 +334,7 @@ export default function SetariPage() {
       {activeTab === 'utilizatori' && (
         <div>
           <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:12 }}>
-            <button className="btn btn-p" onClick={() => { setUserForm({nume:'',parola:'',rol:'curatenie',activ:true}); setUserModal('add') }}>+ Utilizator nou</button>
+            <button className="btn btn-p" onClick={() => { setUserForm({nume:'',parola:'',rol:'curatenie',activ:true,firma:''}); setUserModal('add') }}>+ Utilizator nou</button>
           </div>
           <div className="card" style={{ padding:0, overflow:'hidden' }}>
             {loadingUsers ? <div className="loading">Se încarcă...</div> : utilizatori.map((u,i) => (
@@ -383,6 +391,12 @@ export default function SetariPage() {
                     {ROLURI.map(r => <option key={r} value={r}>{ROL_LABELS[r]}</option>)}
                   </select>
                 </div>
+                {userForm.rol === 'client' && (
+                  <div className="fg"><label className="fl">Firma clientului</label>
+                    <input className="fi" value={userForm.firma||''} onChange={e => setUserForm({...userForm,firma:e.target.value})}
+                      placeholder="ex: CONECON (exact ca în rezervări)" />
+                  </div>
+                )}
                 <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', background:'#F8FAFC', borderRadius:12, marginBottom:14, cursor:'pointer' }}
                   onClick={() => setUserForm({...userForm,activ:!userForm.activ})}>
                   <div style={{ width:20, height:20, borderRadius:6, background:userForm.activ?'#0F2344':'#E9EDF4', border:`2px solid ${userForm.activ?'#0F2344':'#D1D9E6'}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>

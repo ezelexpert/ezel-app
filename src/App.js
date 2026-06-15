@@ -9,6 +9,7 @@ const CuratenIePage = lazy(() => import('./pages/CuratenIePage'))
 const LenjeriiPage = lazy(() => import('./pages/LenjeriiPage'))
 const RaporteazaProblema = lazy(() => import('./pages/RaporteazaProblema'))
 const HandymanPage = lazy(() => import('./pages/HandymanPage'))
+const ClientPortal = lazy(() => import('./pages/ClientPortal'))
 
 function PrivateRoute({ element, requiredRole }) {
   const session = getSession()
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="/curatenie" element={<PrivateRoute element={<CuratenIePage />} requiredRole="curatenie" />} />
           <Route path="/lenjerii" element={<PrivateRoute element={<LenjeriiPage />} requiredRole="lenjerii" />} />
           <Route path="/handyman" element={<PrivateRoute element={<HandymanPage />} requiredRole="handyman" />} />
+          <Route path="/client" element={<PrivateRoute element={<ClientPortal />} requiredRole="client" />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

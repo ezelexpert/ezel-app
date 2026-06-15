@@ -29,6 +29,7 @@ export default function LoginPage() {
         s.role === 'admin' ? '/admin'
         : s.role === 'lenjerii' ? '/lenjerii'
         : s.role === 'handyman' ? '/handyman'
+        : s.role === 'client' ? '/client'
         : '/curatenie',
         { replace: true }
       )
@@ -45,6 +46,7 @@ export default function LoginPage() {
     getUtilizatori().then(useri => {
       const roluri = tip === 'admin' ? ['admin']
         : tip === 'handyman' ? ['handyman']
+        : tip === 'client' ? ['client']
         : ['curatenie', 'lenjerii']
       const filtrati = useri.filter(u => roluri.includes(u.rol))
       setUtilizatori(filtrati)
@@ -78,6 +80,7 @@ export default function LoginPage() {
       result.user.rol === 'admin' ? '/admin'
       : result.user.rol === 'lenjerii' ? '/lenjerii'
       : result.user.rol === 'handyman' ? '/handyman'
+      : result.user.rol === 'client' ? '/client'
       : '/curatenie',
       { replace: true }
     )
@@ -128,6 +131,14 @@ export default function LoginPage() {
                   <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>Mentenanță, lucrări</div>
                 </div>
               </button>
+              <button onClick={() => setTip('client')}
+                style={{ padding: '16px', borderRadius: 12, border: '1.5px solid #7DD3FC', background: '#E0F2FE', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 10, background: '#075985', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>🏢</div>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: '#075985' }}>Client (firmă)</div>
+                  <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>Cazații tăi & facturi</div>
+                </div>
+              </button>
             </div>
           </div>
         ) : (
@@ -138,10 +149,10 @@ export default function LoginPage() {
               style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#888', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 4 }}>
               ← Înapoi
             </button>
-            <div style={{ background: tip === 'admin' ? '#EBF1FB' : tip === 'handyman' ? '#FEF3C7' : '#E2EFDA', borderRadius: 10, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 20 }}>{tip === 'admin' ? '👔' : tip === 'handyman' ? '🔧' : '🧹'}</span>
-              <div style={{ fontSize: 13, fontWeight: 600, color: tip === 'admin' ? '#1F3864' : tip === 'handyman' ? '#92400E' : '#375623' }}>
-                {tip === 'admin' ? 'Manager' : tip === 'handyman' ? 'Handyman' : 'Curățenie & Lenjerii'}
+            <div style={{ background: tip === 'admin' ? '#EBF1FB' : tip === 'handyman' ? '#FEF3C7' : tip === 'client' ? '#E0F2FE' : '#E2EFDA', borderRadius: 10, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 20 }}>{tip === 'admin' ? '👔' : tip === 'handyman' ? '🔧' : tip === 'client' ? '🏢' : '🧹'}</span>
+              <div style={{ fontSize: 13, fontWeight: 600, color: tip === 'admin' ? '#1F3864' : tip === 'handyman' ? '#92400E' : tip === 'client' ? '#075985' : '#375623' }}>
+                {tip === 'admin' ? 'Manager' : tip === 'handyman' ? 'Handyman' : tip === 'client' ? 'Client (firmă)' : 'Curățenie & Lenjerii'}
               </div>
             </div>
 
